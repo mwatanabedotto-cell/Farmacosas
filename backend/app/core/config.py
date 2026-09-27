@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     openfda_max_resultados: int = 5000
     openfda_pausa_segundos: float = 0.3
 
+    cima_pausa_segundos: float = 0.2
+
     csv_principios: Path = RAIZ_REPO / "data" / "principios_activos_iniciales.csv"
 
 

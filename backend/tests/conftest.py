@@ -79,3 +79,26 @@ def ficha_label(set_id: str, spl_id: str = "spl-1", version: str = "1", **seccio
     }
     base.update({k: [v] for k, v in secciones.items()})
     return base
+
+
+def medicamento_cima(nregistro: str, nombre: str, **extra) -> dict:
+    """Registro con la forma de /medicamentos de CIMA."""
+    base = {
+        "nregistro": nregistro,
+        "nombre": nombre,
+        "labtitular": "Sanofi Aventis S.A.",
+        "cpresc": "Medicamento Sujeto A Prescripción Médica",
+        "estado": {"aut": 635122800000},
+        "comerc": True,
+        "generico": False,
+        "biosimilar": False,
+        "psum": False,
+        "docs": [{"tipo": 1, "urlHtml": f"https://cima.aemps.es/cima/dochtml/ft/{nregistro}/FT.html",
+                  "secc": True, "fecha": 1665182910000}],
+        "viasAdministracion": [{"id": 58, "nombre": "VÍA SUBCUTÁNEA"}],
+        "formaFarmaceutica": {"nombre": "SOLUCIÓN INYECTABLE EN JERINGA PRECARGADA"},
+        "vtm": {"nombre": "enoxaparina sodio"},
+        "dosis": "40 mg",
+    }
+    base.update(extra)
+    return base

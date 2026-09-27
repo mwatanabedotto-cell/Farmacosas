@@ -332,6 +332,6 @@ docs/
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
 2. ~~Crear el esqueleto del backend FastAPI (modelos, migraciones, búsqueda) y cargar la lista semilla.~~ Hecho — ver [`backend/README.md`](../backend/README.md). Pendiente: usuarios con roles y MFA.
-3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~ y ~~fichas de DailyMed + flujo editorial de monografías~~ hechos; RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
+3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~, ~~fichas de DailyMed + flujo editorial de monografías~~ y ~~AEMPS CIMA (medicamentos y fichas en español)~~ hechos; pendientes INVIMA CUM (Colombia), RxNorm (EE. UU.) y el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.

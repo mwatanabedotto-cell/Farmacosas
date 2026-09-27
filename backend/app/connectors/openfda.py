@@ -11,6 +11,8 @@ from datetime import date
 
 import httpx
 
+from app.connectors.base import ClienteHTTP, ErrorConector, ResultadoProductos
+
 BASE_URL = "https://api.fda.gov"
 TAMANO_PAGINA = 1000  # máximo permitido por openFDA
 SKIP_MAXIMO = 25000  # openFDA no admite skip mayor
@@ -50,7 +52,7 @@ SECCIONES_FICHA: dict[str, str] = {
 }
 
 
-class OpenFDAError(Exception):
+class OpenFDAError(ErrorConector):
     pass
 
 
@@ -74,9 +76,7 @@ class OpenFDAClient:
         self.api_key = api_key
         self.http = http or httpx.Client(base_url=BASE_URL, timeout=30)
         self.max_resultados = min(max_resultados, SKIP_MAXIMO + TAMANO_PAGINA)
-        self.pausa_segundos = pausa_segundos
-        self.max_reintentos = max_reintentos
-        self.dormir = dormir
+        self.cliente = ClienteHTTP(self.http, pausa_segundos, max_reintentos, dormir, OpenFDAError)
 
     def buscar_ndc(self, busqueda: str) -> ResultadoBusqueda:
         """Devuelve todos los productos que cumplen la búsqueda, paginando."""
@@ -94,7 +94,7 @@ class OpenFDAClient:
             skip += len(pagina)
             if not pagina or skip >= total or skip >= self.max_resultados:
                 break
-            self.dormir(self.pausa_segundos)
+            self.cliente.pausa()
         return ResultadoBusqueda(resultados=resultados, total=total, truncado=len(resultados) < total)
 
     def buscar_fichas(self, set_ids: list[str]) -> dict[str, dict]:
@@ -109,22 +109,48 @@ class OpenFDAClient:
     def _get(self, ruta: str, params: dict) -> dict | None:
         if self.api_key:
             params = {**params, "api_key": self.api_key}
-        for intento in range(self.max_reintentos + 1):
-            try:
-                resp = self.http.get(ruta, params=params)
-            except httpx.TransportError as e:
-                error = f"Error de red: {e}"
-            else:
-                if resp.status_code == 200:
-                    return resp.json()
-                if resp.status_code == 404:
-                    return None  # openFDA responde 404 cuando no hay coincidencias
-                if resp.status_code != 429 and resp.status_code < 500:
-                    raise OpenFDAError(f"openFDA respondió {resp.status_code}: {resp.text[:300]}")
-                error = f"openFDA respondió {resp.status_code}"
-            if intento < self.max_reintentos:
-                self.dormir(2 ** (intento + 1))
-        raise OpenFDAError(f"{error} (tras {self.max_reintentos} reintentos)")
+        return self.cliente.get_json(ruta, params)
+
+
+class ConectorOpenFDA:
+    """Adaptador del NDC Directory al servicio genérico de sincronización de productos."""
+
+    codigo_fuente = "openfda_ndc"
+    datos_fuente = {
+        "nombre": "openFDA — NDC Directory",
+        "agencia": "FDA",
+        "pais": "US",
+        "url": "https://open.fda.gov/apis/drug/ndc/",
+        "licencia": "Dominio público (CC0), ver https://open.fda.gov/license/",
+    }
+
+    def __init__(self, cliente: OpenFDAClient):
+        self.cliente = cliente
+
+    def buscar(self, principio) -> ResultadoProductos:
+        componentes = parsear_terminos(principio.terminos_openfda)
+        if not componentes:
+            raise OpenFDAError("El principio activo no tiene términos de openFDA")
+        busqueda = construir_busqueda(componentes)
+        resultado = self.cliente.buscar_ndc(busqueda)
+        productos = []
+        for bruto in fusionar_duplicados(resultado.resultados):
+            ingredientes = [i.get("name", "") for i in bruto.get("active_ingredients") or []]
+            if es_excluido(bruto) or not bruto.get("product_ndc") or not producto_coincide(ingredientes, componentes):
+                continue
+            datos = normalizar_producto(bruto)
+            if nombre_cumple_filtro(datos["nombre_comercial"], principio.filtro_nombre_openfda):
+                productos.append(datos)
+        return ResultadoProductos(
+            productos=productos,
+            recibidos={b.get("product_ndc") for b in resultado.resultados if b.get("product_ndc")},
+            total=resultado.total,
+            truncado=resultado.truncado,
+            consulta=busqueda,
+        )
+
+    def completar(self, datos: dict) -> dict:
+        return datos
 
 
 def parsear_terminos(terminos: str | None) -> list[list[str]]:

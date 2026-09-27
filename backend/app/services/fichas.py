@@ -3,11 +3,13 @@
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.connectors.openfda import MAX_SET_IDS_POR_CONSULTA, OpenFDAClient, OpenFDAError, normalizar_ficha
+from app.connectors.base import ErrorConector
+from app.connectors.openfda import MAX_SET_IDS_POR_CONSULTA, OpenFDAClient, normalizar_ficha
 from app.models import FichaTecnica, FuenteDatos, PrincipioActivo, ProductoComercial, SeccionFicha, Sincronizacion, ahora
 from app.services.sync_openfda import obtener_fuente as obtener_fuente_ndc
 
@@ -86,8 +88,42 @@ def _hash(datos: dict) -> str:
     return hashlib.sha256(json.dumps(datos, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def ficha_existente(db: Session, principio: PrincipioActivo, fuente: FuenteDatos) -> FichaTecnica | None:
+    return db.scalar(
+        select(FichaTecnica).where(FichaTecnica.principio_activo_id == principio.id, FichaTecnica.fuente_id == fuente.id)
+    )
+
+
+def guardar_ficha(
+    db: Session, principio: PrincipioActivo, fuente: FuenteDatos, idioma: str, datos: dict
+) -> tuple[FichaTecnica, str]:
+    """Crea o actualiza la ficha del principio activo en esa fuente. Devuelve (ficha, resultado)."""
+    h = _hash(datos)
+    momento = ahora()
+    ficha = ficha_existente(db, principio, fuente)
+    if ficha is not None and ficha.hash_contenido == h:
+        ficha.fecha_extraccion = momento
+        db.commit()
+        return ficha, "sin_cambios"
+
+    resultado = "actualizada"
+    if ficha is None:
+        resultado = "creada"
+        ficha = FichaTecnica(principio_activo=principio, fuente=fuente, pais=fuente.pais, idioma=idioma)
+        db.add(ficha)
+    for k, v in datos.items():
+        if k != "secciones":
+            setattr(ficha, k, v)
+    ficha.secciones = [SeccionFicha(**s) for s in datos["secciones"]]
+    ficha.hash_contenido = h
+    ficha.fecha_extraccion = momento
+    ficha.fecha_actualizacion = momento
+    db.commit()
+    return ficha, resultado
+
+
 def importar_ficha(db: Session, cliente: OpenFDAClient, principio: PrincipioActivo) -> tuple[FichaTecnica | None, str]:
-    """Descarga y guarda la ficha de referencia. Devuelve (ficha, resultado).
+    """Descarga y guarda la ficha de referencia de EE. UU. Devuelve (ficha, resultado).
 
     resultado: creada | actualizada | sin_cambios | sin_ficha
     Lanza OpenFDAError si la API falla.
@@ -106,39 +142,16 @@ def importar_ficha(db: Session, cliente: OpenFDAClient, principio: PrincipioActi
             break
     if not bruto:
         return None, "sin_ficha"
-
-    fuente = obtener_fuente(db)
-    datos = normalizar_ficha(bruto)
-    h = _hash(datos)
-    momento = ahora()
-    ficha = db.scalar(
-        select(FichaTecnica).where(
-            FichaTecnica.principio_activo_id == principio.id, FichaTecnica.fuente_id == fuente.id
-        )
-    )
-    if ficha is not None and ficha.hash_contenido == h:
-        ficha.fecha_extraccion = momento
-        db.commit()
-        return ficha, "sin_cambios"
-
-    resultado = "actualizada"
-    if ficha is None:
-        resultado = "creada"
-        ficha = FichaTecnica(principio_activo=principio, fuente=fuente, pais="US", idioma="en")
-        db.add(ficha)
-    for k, v in datos.items():
-        if k != "secciones":
-            setattr(ficha, k, v)
-    ficha.secciones = [SeccionFicha(**s) for s in datos["secciones"]]
-    ficha.hash_contenido = h
-    ficha.fecha_extraccion = momento
-    ficha.fecha_actualizacion = momento
-    db.commit()
-    return ficha, resultado
+    return guardar_ficha(db, principio, obtener_fuente(db), "en", normalizar_ficha(bruto))
 
 
-def importar_fichas(db: Session, cliente: OpenFDAClient, principio_ids: list[int] | None = None) -> list[Sincronizacion]:
-    """Importa fichas, actualiza los borradores de monografía y registra cada ejecución."""
+def importar_lote(
+    db: Session,
+    fuente: FuenteDatos,
+    importar: Callable[[Session, PrincipioActivo], tuple[FichaTecnica | None, str]],
+    principio_ids: list[int] | None = None,
+) -> list[Sincronizacion]:
+    """Importa fichas con `importar`, actualiza los borradores de monografía y registra cada ejecución."""
     from app.services.monografias import generar_borrador
 
     consulta = select(PrincipioActivo).order_by(PrincipioActivo.id)
@@ -146,21 +159,18 @@ def importar_fichas(db: Session, cliente: OpenFDAClient, principio_ids: list[int
         consulta = consulta.where(PrincipioActivo.id.in_(principio_ids))
     salida = []
     for principio in db.scalars(consulta).all():
-        sync = Sincronizacion(fuente=obtener_fuente(db), principio_activo=principio, estado="en_curso")
+        sync = Sincronizacion(fuente=fuente, principio_activo=principio, estado="en_curso")
         db.add(sync)
         db.commit()
         try:
-            ficha, resultado = importar_ficha(db, cliente, principio)
-        except OpenFDAError as e:
+            ficha, resultado = importar(db, principio)
+        except ErrorConector as e:
             db.rollback()
-            log.warning("Ficha de %s: %s", principio.dci_es, e)
+            log.warning("Ficha de %s (%s): %s", principio.dci_es, fuente.codigo, e)
             sync.estado, sync.mensaje = "error", str(e)
         else:
-            if ficha is not None:
-                generar_borrador(db, principio, ficha)
-                sync.mensaje = f"{resultado}: {ficha.titulo} v{ficha.version} ({ficha.fecha_efectiva})"
-            else:
-                sync.mensaje = resultado
+            generar_borrador(db, principio)
+            sync.mensaje = f"{resultado}: {ficha.titulo} v{ficha.version} ({ficha.fecha_efectiva})" if ficha else resultado
             sync.estado = "ok"
             sync.n_creados = int(resultado == "creada")
             sync.n_actualizados = int(resultado == "actualizada")
@@ -169,3 +179,8 @@ def importar_fichas(db: Session, cliente: OpenFDAClient, principio_ids: list[int
         db.commit()
         salida.append(sync)
     return salida
+
+
+def importar_fichas(db: Session, cliente: OpenFDAClient, principio_ids: list[int] | None = None) -> list[Sincronizacion]:
+    """Fichas técnicas de EE. UU. (DailyMed)."""
+    return importar_lote(db, obtener_fuente(db), lambda db_, p: importar_ficha(db_, cliente, p), principio_ids)

@@ -13,6 +13,8 @@ alembic upgrade head               # crea las tablas (SQLite por defecto: ./farm
 python -m app.cli sembrar          # carga los 100 principios activos de data/
 python -m app.cli sincronizar-openfda --dci enoxaparina   # productos de EE. UU. (sin --dci: los 100)
 python -m app.cli importar-fichas --dci enoxaparina       # ficha técnica de DailyMed + borrador de monografía
+python -m app.cli sincronizar-cima --dci enoxaparina      # medicamentos de España (CIMA, AEMPS)
+python -m app.cli importar-fichas-cima --dci enoxaparina  # ficha técnica española + borrador en español
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -25,6 +27,7 @@ uvicorn app.main:app --reload      # documentación interactiva en http://localh
 | `FARMACOSAS_OPENFDA_API_KEY` | — | Recomendada: sin clave, openFDA permite 1000 peticiones/día; con clave, 120 000 ([solicitar](https://open.fda.gov/apis/authentication/)). |
 | `FARMACOSAS_OPENFDA_MAX_RESULTADOS` | `5000` | Máximo de productos descargados por principio activo. |
 | `FARMACOSAS_OPENFDA_PAUSA_SEGUNDOS` | `0.3` | Pausa entre páginas. |
+| `FARMACOSAS_CIMA_PAUSA_SEGUNDOS` | `0.2` | Pausa entre peticiones a CIMA. |
 
 ## Endpoints
 
@@ -43,7 +46,8 @@ Administración (cabecera `X-Admin-Key`):
 | Método | Ruta | Descripción |
 |---|---|---|
 | POST | `/api/v1/admin/sincronizaciones/openfda` | Sincroniza productos de EE. UU. (`{"principio_ids": [..]}` o todos) |
-| POST | `/api/v1/admin/sincronizaciones/fichas-openfda` | Importa fichas técnicas y actualiza borradores |
+| POST | `/api/v1/admin/sincronizaciones/fichas-openfda` | Importa fichas técnicas de EE. UU. y actualiza borradores |
+| POST | `/api/v1/admin/sincronizaciones/cima` | Sincroniza medicamentos de España y después importa sus fichas técnicas |
 | GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
 | GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
 | PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
@@ -86,6 +90,31 @@ Sin productos en EE. UU., lo cual es correcto: metamizol (solo principio activo 
 y butilbromuro de hioscina (no aprobados en EE. UU.). Sulfato ferroso tiene 1 producto porque
 en EE. UU. el hierro oral se comercializa mayoritariamente como suplemento dietético, fuera del NDC.
 
+## Conector CIMA (España)
+
+Fuente: [CIMA](https://cima.aemps.es/) de la AEMPS, API REST pública.
+
+- Los medicamentos se buscan por el **código ATC** del principio activo (columna `atc` del CSV).
+  El ATC ya distingue el uso: insulina regular (A10AB01) frente a NPH (A10AC01), AAS antiagregante
+  (B01AC06) frente a analgésico, hidrocortisona sistémica (H02AB09) frente a tópica, etc. Con varios
+  códigos (p. ej. metronidazol `J01XD01 / P01AB01`) se consultan todos.
+- Cada medicamento (número de registro) es un producto: marca extraída del nombre (`CLEXANE`),
+  nombre completo, titular, vía, forma, composición, EFG, condición de prescripción, **problema de
+  suministro** y estado (`vigente`, `no_comercializado`, `suspendido`, `revocado`, `no_listado`).
+- Las presentaciones (código nacional) y la composición exacta se piden al detalle solo para
+  medicamentos nuevos o que cambiaron, así que las sincronizaciones posteriores son rápidas.
+- **Ficha técnica en español** de referencia: se prefiere el medicamento comercializado, con receta, no
+  EFG y autorizado primero (el original: Clexane, Nolotil, Augmentine, Flagyl...). Se importan las
+  secciones 4.x, 5.1 y 5.2, convertidas a texto plano. Si la fecha de la ficha no cambió, no se
+  descargan de nuevo.
+- CIMA corta a veces la conexión; el cliente reintenta con espera progresiva.
+
+La ficha española es la **base preferida del borrador de monografía**, porque ya está en español:
+el editor solo tiene que resumirla. Correspondencia con las secciones del vademécum: 4.1 → indicaciones;
+4.2 → posología (subsección «Forma de administración» → modo de administración); 4.3 → contraindicaciones;
+4.4 → advertencias; 4.2 + 4.4 filtradas → insuficiencia renal/hepática; 4.5 → interacciones;
+4.6 → embarazo y lactancia; 4.8 → reacciones adversas; 4.9 → sobredosis; 5.1 → mecanismo de acción.
+
 ## Monografías en formato vademécum
 
 Cada principio activo tiene una monografía breve y estructurada, en este orden:
@@ -105,7 +134,8 @@ geriatría, todas), dosis, vía, frecuencia, duración, dosis máxima y notas, c
 
 ### Flujo editorial
 
-1. `importar-fichas` descarga la ficha técnica de referencia y genera (o actualiza) un **borrador**:
+1. `importar-fichas-cima` (España, en español) o `importar-fichas` (EE. UU.) descargan la ficha técnica
+   de referencia y generan (o actualizan) un **borrador**, preferentemente sobre la ficha española:
    cada sección se rellena con el texto original de la ficha, con la ficha ya citada. Para
    insuficiencia renal/hepática, embarazo y lactancia se extraen solo las frases pertinentes.
 2. El editor reescribe cada sección en español, en formato breve, y carga las pautas.

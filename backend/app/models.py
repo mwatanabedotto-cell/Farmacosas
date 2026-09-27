@@ -85,6 +85,8 @@ class ProductoComercial(Base):
     pais: Mapped[str] = mapped_column(String(2), index=True)
     nombre_comercial: Mapped[str] = mapped_column(String(300))
     nombre_busqueda: Mapped[str] = mapped_column(String(300), index=True)
+    # Nombre completo tal como lo registra la agencia (p. ej. "CLEXANE 4.000 UI (40 mg)/0,4 ml SOLUCION...").
+    descripcion: Mapped[str | None] = mapped_column(String(500))
     laboratorio: Mapped[str | None] = mapped_column(String(300))
     forma_farmaceutica: Mapped[str | None] = mapped_column(String(200))
     via: Mapped[str | None] = mapped_column(String(200))
@@ -93,8 +95,10 @@ class ProductoComercial(Base):
     categoria_registro: Mapped[str | None] = mapped_column(String(100))
     n_registro: Mapped[str | None] = mapped_column(String(100))
     es_generico: Mapped[bool | None] = mapped_column(Boolean)
-    # vigente | listado_vencido | no_listado
+    # vigente | listado_vencido | no_listado | no_comercializado | suspendido | revocado
     estado: Mapped[str] = mapped_column(String(30), index=True)
+    # Problema de suministro notificado por la agencia (CIMA).
+    problema_suministro: Mapped[bool | None] = mapped_column(Boolean)
     url_fuente: Mapped[str | None] = mapped_column(String(500))
     url_ficha: Mapped[str | None] = mapped_column(String(500))
     spl_set_id: Mapped[str | None] = mapped_column(String(100), index=True)
@@ -186,6 +190,7 @@ class SeccionFicha(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ficha_id: Mapped[int] = mapped_column(ForeignKey("fichas_tecnicas.id", ondelete="CASCADE"), index=True)
     codigo: Mapped[str] = mapped_column(String(80))
+    titulo: Mapped[str | None] = mapped_column(String(300))
     orden: Mapped[int] = mapped_column(Integer)
     texto: Mapped[str] = mapped_column(Text)
 

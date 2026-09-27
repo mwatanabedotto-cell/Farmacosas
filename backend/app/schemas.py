@@ -51,6 +51,7 @@ class ProductoSalida(Esquema):
     id: int
     pais: str
     nombre_comercial: str
+    descripcion: str | None
     laboratorio: str | None
     forma_farmaceutica: str | None
     via: str | None
@@ -60,6 +61,7 @@ class ProductoSalida(Esquema):
     n_registro: str | None
     es_generico: bool | None
     estado: str
+    problema_suministro: bool | None
     url_fuente: str | None
     url_ficha: str | None
     fecha_extraccion: datetime

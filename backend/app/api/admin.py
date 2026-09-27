@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.connectors.cima import CimaClient, ConectorCima
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import Settings, get_settings
 from app.core.security import requerir_admin
@@ -19,7 +20,7 @@ from app.schemas import (
     SeccionBorrador,
     SincronizacionSalida,
 )
-from app.services import fichas, monografias, sync_openfda
+from app.services import fichas, fichas_cima, monografias, sincronizacion, sync_openfda
 
 router = APIRouter(prefix="/admin", tags=["administración"], dependencies=[Depends(requerir_admin)])
 
@@ -30,6 +31,10 @@ def get_openfda_client(settings: Settings = Depends(get_settings)) -> OpenFDACli
         max_resultados=settings.openfda_max_resultados,
         pausa_segundos=settings.openfda_pausa_segundos,
     )
+
+
+def get_cima_client(settings: Settings = Depends(get_settings)) -> CimaClient:
+    return CimaClient(pausa_segundos=settings.cima_pausa_segundos)
 
 
 def _ejecutar_sync(fabrica: sessionmaker[Session], cliente: OpenFDAClient, principio_ids: list[int] | None) -> None:
@@ -63,6 +68,24 @@ def sincronizar_fichas(
     """Importa las fichas técnicas de DailyMed y actualiza los borradores de monografía."""
     tareas.add_task(_ejecutar_fichas, fabrica, cliente, peticion.principio_ids)
     return {"mensaje": "Importación de fichas técnicas iniciada", "principio_ids": peticion.principio_ids}
+
+
+def _ejecutar_cima(fabrica: sessionmaker[Session], cliente: CimaClient, principio_ids: list[int] | None) -> None:
+    with fabrica() as db:
+        sincronizacion.sincronizar(db, ConectorCima(cliente), principio_ids)
+        fichas_cima.importar_fichas(db, cliente, principio_ids)
+
+
+@router.post("/sincronizaciones/cima", status_code=status.HTTP_202_ACCEPTED)
+def sincronizar_cima(
+    peticion: PeticionSincronizacion,
+    tareas: BackgroundTasks,
+    fabrica: sessionmaker[Session] = Depends(get_session_factory),
+    cliente: CimaClient = Depends(get_cima_client),
+) -> dict:
+    """Sincroniza medicamentos de España (CIMA) y después importa sus fichas técnicas."""
+    tareas.add_task(_ejecutar_cima, fabrica, cliente, peticion.principio_ids)
+    return {"mensaje": "Sincronización con CIMA iniciada", "principio_ids": peticion.principio_ids}
 
 
 @router.get("/sincronizaciones", response_model=list[SincronizacionSalida])

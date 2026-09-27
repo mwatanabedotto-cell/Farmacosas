@@ -44,7 +44,8 @@ def fichas_tecnicas(principio_id: int, pais: str | None = None, db: Session = De
 
 def _secciones(ficha: FichaTecnica) -> list[SeccionFichaSalida]:
     textos = {s.codigo: s.texto for s in ficha.secciones}
+    titulos = {s.codigo: s.titulo for s in ficha.secciones}
     return [
-        SeccionFichaSalida(codigo=c, titulo=SECCIONES_FICHA.get(c, c), texto=textos[c])
+        SeccionFichaSalida(codigo=c, titulo=titulos[c] or SECCIONES_FICHA.get(c, c), texto=textos[c])
         for c in secciones_sin_duplicar(textos)
     ]

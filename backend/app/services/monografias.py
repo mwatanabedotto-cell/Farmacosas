@@ -28,6 +28,20 @@ from app.models import (
 
 
 @dataclass(frozen=True)
+class ExtraccionCima:
+    """Cómo obtener una sección de la ficha técnica española (numeración del RCP: 4.1, 4.2...)."""
+
+    # Secciones a usar, incluidas sus subsecciones (p. ej. "4.2" abarca "4.2.1", "4.2.2"...).
+    prefijos: tuple[str, ...]
+    # Solo subsecciones cuyo título coincide (p. ej. "administración"); con "!" delante, las que no.
+    titulo: str | None = None
+    # Solo las frases que coinciden.
+    filtro: str | None = None
+    # Solo los primeros párrafos, hasta este número de caracteres.
+    max_caracteres: int | None = None
+
+
+@dataclass(frozen=True)
 class TipoSeccion:
     tipo: str
     titulo: str
@@ -41,12 +55,18 @@ class TipoSeccion:
     # Igual, pero solo para las fuentes alternativas.
     filtro_alternativas: str | None = None
     obligatoria: bool = False
+    # Extracción desde la ficha técnica española: se prueba cada alternativa en orden.
+    cima: tuple[ExtraccionCima, ...] = ()
 
 
 RENAL = r"\b(renal|kidney|creatinine clearance|CrCl|CLcr|eGFR|dialysis|hemodialysis)\b"
 HEPATICA = r"\b((hepatic|liver) (impairment|insufficiency|disease|dysfunction)|Child-Pugh|cirrhosis)\b"
 EMBARAZO = r"\b(pregnan\w*|fetal|fetus|teratogen\w*)\b"
 LACTANCIA = r"\b(lactation|lactating|breast[- ]?(fed|feeding|milk)|breastfe\w*|nursing|human milk)\b"
+RENAL_ES = r"\b(renal|riñón|riñones|aclaramiento de creatinina|ClCr|CLcr|filtrado glomerular|TFG|diálisis|hemodiálisis)\b"
+HEPATICA_ES = r"(\b(insuficiencia|alteración|enfermedad|disfunción) hepática|\bChild[- ]Pugh\b|\bcirrosis\b)"
+EMBARAZO_ES = r"\b(embaraz\w*|gestación|gestante\w*|fet\w+|teratog\w*)\b"
+LACTANCIA_ES = r"\b(lactancia|leche materna|lactante\w*|amamant\w*)\b"
 
 # Texto que no debe arrastrarse a las extracciones renal/hepática (tiene sus propias secciones).
 OTRAS_POBLACIONES = ("pregnancy", "lactation", "nursing_mothers", "pediatric_use")
@@ -54,24 +74,31 @@ OTRAS_POBLACIONES = ("pregnancy", "lactation", "nursing_mothers", "pediatric_use
 # Orden de un vademécum. La posología se completa con pautas estructuradas.
 TIPOS_SECCION: tuple[TipoSeccion, ...] = (
     TipoSeccion("alerta", "Alerta destacada", ("boxed_warning",)),
-    TipoSeccion("mecanismo_accion", "Mecanismo de acción", ("mechanism_of_action",), ("clinical_pharmacology",)),
-    TipoSeccion("indicaciones", "Indicaciones", ("indications_and_usage",), obligatoria=True),
-    TipoSeccion("posologia", "Posología: notas generales", ("dosage_and_administration",)),
-    TipoSeccion("modo_administracion", "Modo de administración"),
-    TipoSeccion("contraindicaciones", "Contraindicaciones", ("contraindications",), obligatoria=True),
+    TipoSeccion("mecanismo_accion", "Mecanismo de acción", ("mechanism_of_action",), ("clinical_pharmacology",),
+                cima=(ExtraccionCima(("5.1",), titulo="mecanismo"), ExtraccionCima(("5.1",), max_caracteres=1200))),
+    TipoSeccion("indicaciones", "Indicaciones", ("indications_and_usage",), obligatoria=True,
+                cima=(ExtraccionCima(("4.1",)),)),
+    TipoSeccion("posologia", "Posología: notas generales", ("dosage_and_administration",),
+                cima=(ExtraccionCima(("4.2",), titulo="!administraci"),)),
+    TipoSeccion("modo_administracion", "Modo de administración", cima=(ExtraccionCima(("4.2",), titulo="administraci"),)),
+    TipoSeccion("contraindicaciones", "Contraindicaciones", ("contraindications",), obligatoria=True,
+                cima=(ExtraccionCima(("4.3",)),)),
     TipoSeccion("advertencias", "Advertencias y precauciones",
-                ("warnings_and_cautions", "warnings", "precautions"), obligatoria=True),
+                ("warnings_and_cautions", "warnings", "precautions"), obligatoria=True, cima=(ExtraccionCima(("4.4",)),)),
     TipoSeccion("insuficiencia_renal", "Insuficiencia renal",
-                ("dosage_and_administration", "use_in_specific_populations"), excluir=OTRAS_POBLACIONES, filtro=RENAL),
+                ("dosage_and_administration", "use_in_specific_populations"), excluir=OTRAS_POBLACIONES, filtro=RENAL,
+                cima=(ExtraccionCima(("4.2", "4.4"), filtro=RENAL_ES),)),
     TipoSeccion("insuficiencia_hepatica", "Insuficiencia hepática",
                 ("dosage_and_administration", "use_in_specific_populations"), excluir=OTRAS_POBLACIONES,
-                filtro=HEPATICA),
-    TipoSeccion("interacciones", "Interacciones", ("drug_interactions",)),
-    TipoSeccion("embarazo", "Embarazo", ("pregnancy",), ("use_in_specific_populations",), filtro_alternativas=EMBARAZO),
+                filtro=HEPATICA, cima=(ExtraccionCima(("4.2", "4.4"), filtro=HEPATICA_ES),)),
+    TipoSeccion("interacciones", "Interacciones", ("drug_interactions",), cima=(ExtraccionCima(("4.5",)),)),
+    TipoSeccion("embarazo", "Embarazo", ("pregnancy",), ("use_in_specific_populations",), filtro_alternativas=EMBARAZO,
+                cima=(ExtraccionCima(("4.6",), titulo="embarazo"), ExtraccionCima(("4.6",), filtro=EMBARAZO_ES))),
     TipoSeccion("lactancia", "Lactancia", ("lactation", "nursing_mothers"), ("use_in_specific_populations",),
-                filtro_alternativas=LACTANCIA),
-    TipoSeccion("reacciones_adversas", "Reacciones adversas", ("adverse_reactions",)),
-    TipoSeccion("sobredosis", "Sobredosis", ("overdosage",)),
+                filtro_alternativas=LACTANCIA,
+                cima=(ExtraccionCima(("4.6",), titulo="lactancia"), ExtraccionCima(("4.6",), filtro=LACTANCIA_ES))),
+    TipoSeccion("reacciones_adversas", "Reacciones adversas", ("adverse_reactions",), cima=(ExtraccionCima(("4.8",)),)),
+    TipoSeccion("sobredosis", "Sobredosis", ("overdosage",), cima=(ExtraccionCima(("4.9",)),)),
     TipoSeccion("perioperatorio", "Consideraciones perioperatorias"),
 )
 TIPOS = {t.tipo: t for t in TIPOS_SECCION}
@@ -102,8 +129,12 @@ class ErrorEditorial(Exception):
 
 # --- Referencias -----------------------------------------------------------------
 
+PREFIJO_REFERENCIA = {"openfda_label": "dailymed", "cima_ft": "cima"}
+
+
 def referencia_de_ficha(db: Session, ficha: FichaTecnica) -> Referencia:
-    clave = f"dailymed:{ficha.set_id}:{ficha.version}"
+    prefijo = PREFIJO_REFERENCIA.get(ficha.fuente.codigo, ficha.fuente.codigo)
+    clave = f"{prefijo}:{ficha.set_id}:{ficha.version}"
     ref = db.scalar(select(Referencia).where(Referencia.clave == clave))
     if ref is None:
         ref = Referencia(
@@ -158,10 +189,48 @@ def _validar_referencias(db: Session, referencia_ids: list[int]) -> None:
 # --- Borrador --------------------------------------------------------------------
 
 def _frases(texto: str) -> list[str]:
-    return [f.strip() for f in re.split(r"(?<=[.;])\s+(?=[A-Z0-9(•])", texto) if f.strip()]
+    return [f.strip() for f in re.split(r"\n+|(?<=[.;])\s+(?=[A-ZÁÉÍÓÚÑ0-9(•])", texto) if f.strip()]
+
+
+def _filtrar_frases(texto: str, filtro: str) -> str:
+    patron = re.compile(filtro, re.IGNORECASE)
+    return "\n".join(dict.fromkeys(f for f in _frases(texto) if patron.search(f)))
+
+
+def _primeros_parrafos(texto: str, maximo: int) -> str:
+    salida: list[str] = []
+    for parrafo in texto.split("\n"):
+        if salida and len("\n".join(salida + [parrafo])) > maximo:
+            break
+        salida.append(parrafo)
+    return "\n".join(salida)
+
+
+def _texto_cima(ficha: FichaTecnica, tipo: TipoSeccion) -> str | None:
+    for extraccion in tipo.cima:
+        partes = []
+        for s in ficha.secciones:
+            if not any(s.codigo == p or s.codigo.startswith(p + ".") for p in extraccion.prefijos):
+                continue
+            if extraccion.titulo:
+                excluir = extraccion.titulo.startswith("!")
+                coincide = re.search(extraccion.titulo.lstrip("!"), s.titulo or "", re.IGNORECASE) is not None
+                if coincide == excluir:
+                    continue
+            partes.append(s.texto)
+        texto = "\n".join(partes)
+        if extraccion.filtro:
+            texto = _filtrar_frases(texto, extraccion.filtro)
+        if extraccion.max_caracteres:
+            texto = _primeros_parrafos(texto, extraccion.max_caracteres)
+        if texto.strip():
+            return texto.strip()
+    return None
 
 
 def texto_desde_ficha(ficha: FichaTecnica, tipo: TipoSeccion) -> str | None:
+    if ficha.fuente.codigo == "cima_ft":
+        return _texto_cima(ficha, tipo)
     por_codigo = {s.codigo: s.texto for s in ficha.secciones}
     for codigos, filtro in ((tipo.fuentes, tipo.filtro), (tipo.fuentes_alternativas, tipo.filtro_alternativas)):
         textos = [por_codigo[c] for c in codigos if por_codigo.get(c)]
@@ -172,9 +241,7 @@ def texto_desde_ficha(ficha: FichaTecnica, tipo: TipoSeccion) -> str | None:
             if por_codigo.get(c):
                 texto = texto.replace(por_codigo[c], "")
         if filtro:
-            patron = re.compile(filtro, re.IGNORECASE)
-            frases = [f for f in _frases(texto) if patron.search(f)]
-            texto = "\n".join(dict.fromkeys(frases))
+            texto = _filtrar_frases(texto, filtro)
         return re.sub(r"[ \t]{2,}", " ", texto).strip() or None
     return None
 
@@ -197,14 +264,23 @@ def _rellenar_desde_ficha(db: Session, seccion: SeccionMonografia, ficha: FichaT
     _fijar_citas(db, cita_seccion, "seccion_id", seccion, [ref.id] if texto else [])
 
 
-def generar_borrador(db: Session, principio: PrincipioActivo, ficha: FichaTecnica) -> Monografia | None:
-    """Crea o actualiza el borrador a partir de la ficha. Idempotente.
+def ficha_preferida(db: Session, principio: PrincipioActivo) -> FichaTecnica | None:
+    """Base del borrador: la ficha en español si existe (el editor solo tiene que resumir), si no la de EE. UU."""
+    fichas = db.scalars(select(FichaTecnica).where(FichaTecnica.principio_activo_id == principio.id)).all()
+    return min(fichas, key=lambda f: (f.idioma != "es", f.pais != "US", f.id), default=None)
+
+
+def generar_borrador(db: Session, principio: PrincipioActivo, ficha: FichaTecnica | None = None) -> Monografia | None:
+    """Crea o actualiza el borrador a partir de la ficha (por defecto, la preferida). Idempotente.
 
     - Si hay borrador: se refrescan solo las secciones aún no revisadas.
     - Si la versión publicada ya se basa en esta versión de la ficha: no hace nada.
     - Si no: crea un borrador nuevo que conserva las secciones revisadas y las pautas de
       la versión publicada, y rellena el resto con el texto de la ficha.
     """
+    ficha = ficha or ficha_preferida(db, principio)
+    if ficha is None:
+        return None
     borrador = monografia_en_estado(db, principio.id, "borrador")
     publicada = monografia_en_estado(db, principio.id, "publicada")
     ref = referencia_de_ficha(db, ficha)
