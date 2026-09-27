@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
 
+from app.services.listas_esenciales import resumen as resumen_listas
 from app.models import (
     FichaTecnica,
     Monografia,
@@ -495,6 +496,7 @@ def vista_publica(db: Session, principio: PrincipioActivo) -> dict | None:
         "revisado_por": monografia.revisado_por,
         "frescura": frescura(monografia, ficha_actual),
         "nombres_comerciales": nombres_comerciales(db, principio.id),
+        "listas_esenciales": resumen_listas(db, principio.id),
         "secciones": secciones,
         "pautas": pautas,
         "referencias": [

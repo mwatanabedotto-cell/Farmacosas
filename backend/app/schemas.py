@@ -24,9 +24,38 @@ class DisponibilidadPais(BaseModel):
     ultima_verificacion: datetime | None
 
 
+class ListaEsencialResumen(BaseModel):
+    """Inclusión en una lista nacional de medicamentos esenciales (p. ej. LINAME de Bolivia)."""
+
+    pais: str
+    lista: str
+    presentaciones: list[str]
+    uso_restringido: bool
+    aware: str | None
+    url_fuente: str
+    ultima_verificacion: datetime
+
+
+class ItemListaEsencialSalida(Esquema):
+    pais: str
+    lista: str
+    codigo: str
+    medicamento: str
+    forma_farmaceutica: str
+    concentracion: str
+    atc: str | None
+    uso_restringido: bool
+    aware: str | None
+    estado: str
+    url_fuente: str
+    fecha_extraccion: datetime
+    fecha_actualizacion: datetime
+
+
 class PrincipioDetalle(PrincipioResumen):
     actualizado_en: datetime
     disponibilidad: list[DisponibilidadPais]
+    listas_esenciales: list[ListaEsencialResumen]
 
 
 class ListaPrincipios(BaseModel):
@@ -203,6 +232,7 @@ class MonografiaPublica(BaseModel):
     revisado_por: str | None
     frescura: Frescura
     nombres_comerciales: list[NombresPais]
+    listas_esenciales: list[ListaEsencialResumen]
     secciones: list[SeccionPublica]
     pautas: list[PautaPublica]
     referencias: list[ReferenciaNumerada]

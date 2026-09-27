@@ -305,3 +305,39 @@ class PautaPosologica(Base):
     monografia: Mapped["Monografia"] = relationship(back_populates="pautas")
     # Solo lectura: las citas se escriben con orden explícito en services/monografias.py.
     referencias: Mapped[list[Referencia]] = relationship(secondary=cita_pauta, order_by=cita_pauta.c.orden, viewonly=True)
+
+
+class ItemListaEsencial(Base):
+    """Entrada de una lista nacional de medicamentos esenciales (p. ej. LINAME de Bolivia).
+
+    No es un producto comercial: indica que el medicamento (DCI, forma y concentración) está en la
+    lista oficial del país, que orienta la compra y la disponibilidad en el sistema público.
+    """
+
+    __tablename__ = "items_lista_esencial"
+    __table_args__ = (UniqueConstraint("fuente_id", "codigo", "forma_farmaceutica", "concentracion"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fuente_id: Mapped[int] = mapped_column(ForeignKey("fuentes_datos.id"))
+    # Se recalcula en cada sincronización (por ATC o, si falta, por nombre).
+    principio_activo_id: Mapped[int | None] = mapped_column(
+        ForeignKey("principios_activos.id", ondelete="SET NULL"), index=True
+    )
+    pais: Mapped[str] = mapped_column(String(2), index=True)
+    lista: Mapped[str] = mapped_column(String(100))
+    codigo: Mapped[str] = mapped_column(String(30))
+    medicamento: Mapped[str] = mapped_column(String(300))
+    forma_farmaceutica: Mapped[str] = mapped_column(String(200))
+    concentracion: Mapped[str] = mapped_column(String(200))
+    atc: Mapped[str | None] = mapped_column(String(20))
+    uso_restringido: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Clasificación AWaRe de la OMS para antibióticos: Acceso | Precaución | Reserva.
+    aware: Mapped[str | None] = mapped_column(String(30))
+    # incluido | excluido (ya no figura en la versión vigente de la lista)
+    estado: Mapped[str] = mapped_column(String(20), index=True)
+    url_fuente: Mapped[str] = mapped_column(String(500))
+    fecha_extraccion: Mapped[datetime] = mapped_column(FechaUTC())
+    fecha_actualizacion: Mapped[datetime] = mapped_column(FechaUTC())
+
+    fuente: Mapped[FuenteDatos] = relationship()
+    principio_activo: Mapped[PrincipioActivo | None] = relationship()

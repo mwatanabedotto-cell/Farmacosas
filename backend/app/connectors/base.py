@@ -44,6 +44,11 @@ class ClienteHTTP:
 
     def get_json(self, ruta: str, params: dict) -> dict | list | None:
         """Devuelve el JSON, o None si la fuente responde 404 (sin resultados)."""
+        resp = self.get(ruta, params)
+        return resp.json() if resp is not None and resp.content.strip() else None
+
+    def get(self, ruta: str, params: dict | None = None) -> httpx.Response | None:
+        """Respuesta 200, o None si la fuente responde 404."""
         for intento in range(self.max_reintentos + 1):
             try:
                 resp = self.http.get(ruta, params=params)
@@ -51,7 +56,7 @@ class ClienteHTTP:
                 motivo = f"Error de red: {e}"
             else:
                 if resp.status_code == 200:
-                    return resp.json() if resp.content.strip() else None
+                    return resp
                 if resp.status_code == 404:
                     return None
                 if resp.status_code != 429 and resp.status_code < 500:

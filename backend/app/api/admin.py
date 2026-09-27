@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
@@ -21,7 +22,7 @@ from app.schemas import (
     SeccionBorrador,
     SincronizacionSalida,
 )
-from app.services import fichas, fichas_cima, monografias, sincronizacion, sync_openfda
+from app.services import fichas, fichas_cima, listas_esenciales, monografias, sincronizacion, sync_openfda
 
 router = APIRouter(prefix="/admin", tags=["administración"], dependencies=[Depends(requerir_admin)])
 
@@ -57,6 +58,26 @@ def sincronizar_invima(
     """Sincroniza medicamentos de Colombia (CUM de INVIMA)."""
     tareas.add_task(_ejecutar_invima, fabrica, cliente, peticion.principio_ids)
     return {"mensaje": "Sincronización con INVIMA iniciada", "principio_ids": peticion.principio_ids}
+
+
+def get_agemed_client(settings: Settings = Depends(get_settings)) -> AgemedClient:
+    return AgemedClient(pausa_segundos=settings.agemed_pausa_segundos)
+
+
+def _ejecutar_liname(fabrica: sessionmaker[Session], cliente: AgemedClient) -> None:
+    with fabrica() as db:
+        listas_esenciales.sincronizar_liname(db, cliente)
+
+
+@router.post("/sincronizaciones/liname", status_code=status.HTTP_202_ACCEPTED)
+def sincronizar_liname(
+    tareas: BackgroundTasks,
+    fabrica: sessionmaker[Session] = Depends(get_session_factory),
+    cliente: AgemedClient = Depends(get_agemed_client),
+) -> dict:
+    """Descarga la LINAME vigente de Bolivia (AGEMED) y la asigna a los principios activos."""
+    tareas.add_task(_ejecutar_liname, fabrica, cliente)
+    return {"mensaje": "Sincronización de la LINAME (Bolivia) iniciada"}
 
 
 def _ejecutar_sync(fabrica: sessionmaker[Session], cliente: OpenFDAClient, principio_ids: list[int] | None) -> None:

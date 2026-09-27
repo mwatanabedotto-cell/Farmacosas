@@ -6,6 +6,7 @@
     python -m app.cli sincronizar-cima [--dci enoxaparina ...]
     python -m app.cli importar-fichas-cima [--dci enoxaparina ...]
     python -m app.cli sincronizar-invima [--dci enoxaparina ...]
+    python -m app.cli sincronizar-liname
 """
 
 import argparse
@@ -15,13 +16,14 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import PrincipioActivo
-from app.services import fichas, fichas_cima, sincronizacion, sync_openfda
+from app.services import fichas, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
 from app.services.semilla import cargar_principios
 
 
@@ -40,6 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     p_fcima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     p_invima = sub.add_parser("sincronizar-invima", help="Descarga medicamentos de Colombia (CUM de INVIMA)")
     p_invima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
+    sub.add_parser("sincronizar-liname", help="Descarga la LINAME de Bolivia (AGEMED)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -51,8 +54,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Principios activos: {creados} creados, {actualizados} actualizados")
             return 0
 
+        if args.comando == "sincronizar-liname":
+            s = listas_esenciales.sincronizar_liname(db, AgemedClient(pausa_segundos=settings.agemed_pausa_segundos))
+            print(f"LINAME {s.estado}: creadas={s.n_creados} actualizadas={s.n_actualizados} "
+                  f"sin_cambios={s.n_sin_cambios} excluidas={s.n_no_listados}  [{s.mensaje}]")
+            return 0 if s.estado == "ok" else 1
+
         ids = None
-        if args.dci:
+        if getattr(args, "dci", None):
             principios = db.scalars(select(PrincipioActivo).where(PrincipioActivo.dci_es.in_(args.dci))).all()
             faltan = set(args.dci) - {p.dci_es for p in principios}
             if faltan:

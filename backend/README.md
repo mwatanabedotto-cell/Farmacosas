@@ -16,6 +16,7 @@ python -m app.cli importar-fichas --dci enoxaparina       # ficha técnica de Da
 python -m app.cli sincronizar-cima --dci enoxaparina      # medicamentos de España (CIMA, AEMPS)
 python -m app.cli importar-fichas-cima --dci enoxaparina  # ficha técnica española + borrador en español
 python -m app.cli sincronizar-invima --dci enoxaparina    # medicamentos de Colombia (CUM de INVIMA)
+python -m app.cli sincronizar-liname                      # LINAME de Bolivia (AGEMED)
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -43,6 +44,7 @@ uvicorn app.main:app --reload      # documentación interactiva en http://localh
 | GET | `/api/v1/principios/{id}/productos?pais=&estado=&es_generico=` | Productos comerciales con presentaciones, registro, fuente y fecha de verificación |
 | GET | `/api/v1/principios/{id}/monografia` | **Monografía publicada en formato vademécum** (404 si no hay) |
 | GET | `/api/v1/principios/{id}/fichas-tecnicas?pais=` | Ficha técnica oficial, texto original por secciones |
+| GET | `/api/v1/principios/{id}/listas-esenciales?pais=` | Entradas en listas nacionales de medicamentos esenciales (LINAME) |
 
 Administración (cabecera `X-Admin-Key`):
 
@@ -52,6 +54,7 @@ Administración (cabecera `X-Admin-Key`):
 | POST | `/api/v1/admin/sincronizaciones/fichas-openfda` | Importa fichas técnicas de EE. UU. y actualiza borradores |
 | POST | `/api/v1/admin/sincronizaciones/cima` | Sincroniza medicamentos de España y después importa sus fichas técnicas |
 | POST | `/api/v1/admin/sincronizaciones/invima` | Sincroniza medicamentos de Colombia (CUM) |
+| POST | `/api/v1/admin/sincronizaciones/liname` | Descarga la LINAME de Bolivia |
 | GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
 | GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
 | PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
@@ -138,6 +141,26 @@ Fuente: Código Único de Medicamentos (CUM) publicado por INVIMA en [datos.gov.
   insulina regular (A10AB01). No se corrigen automáticamente.
 - Token opcional `FARMACOSAS_DATOSGOV_APP_TOKEN` para ampliar el límite de peticiones de datos.gov.co.
 - INVIMA no publica fichas técnicas por API: la monografía se apoya en las de España y EE. UU.
+
+## Bolivia (AGEMED): Lista Nacional de Medicamentos Esenciales
+
+AGEMED **no publica de forma abierta el registro sanitario** (marcas y números de registro): su buscador
+exige reCAPTCHA, que no se automatiza, y datos.gob.bo rechaza el acceso (403). Sí publica la
+**LINAME vigente en Excel** (hoy LINAME 2026-2027, actualizada el 07-04-2026), que se importa como
+**lista esencial**, no como productos comerciales:
+
+- Por entrada: código LINAME, medicamento, forma farmacéutica, concentración, ATC, **uso restringido (R)**
+  y, para antibióticos, la **clasificación AWaRe de la OMS** (Acceso / Vigilancia / Reserva).
+- El conector toma de la web de AGEMED el enlace a la versión más reciente (solo acepta archivos de
+  agemed.gob.bo) y marca como `excluido` lo que desaparece en una versión nueva.
+- Asignación a principios activos por ATC (distingue usos: aciclovir crema no es aciclovir sistémico). Si el
+  ATC de la lista no coincide o está incompleto, por nombre idéntico y mismo grupo terapéutico (3 primeros
+  caracteres del ATC); así se recupera la cefazolina, que la LINAME codifica como J01DE04.
+- Errores de la fuente que no se corrigen solos: la «insulina zinc cristalina» (regular) figura como NPH
+  (A10AC01), y «Heparina de bajo peso molecular» (B01AB**) no se asigna a enoxaparina por ser genérica.
+- Se muestra en el detalle del principio activo, en la monografía (`listas_esenciales`) y en
+  `GET /api/v1/principios/{id}/listas-esenciales`.
+- Las marcas comerciales de Bolivia quedan para la **carga asistida** prevista en el plan.
 
 ## Monografías en formato vademécum
 

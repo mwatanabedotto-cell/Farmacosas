@@ -4,7 +4,16 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
 from app.models import PrincipioActivo, ProductoComercial, producto_principio
-from app.schemas import DisponibilidadPais, ListaPrincipios, ListaProductos, PrincipioDetalle, PrincipioResumen
+from app.models import ItemListaEsencial
+from app.schemas import (
+    DisponibilidadPais,
+    ItemListaEsencialSalida,
+    ListaPrincipios,
+    ListaProductos,
+    PrincipioDetalle,
+    PrincipioResumen,
+)
+from app.services.listas_esenciales import resumen as resumen_listas
 
 router = APIRouter(prefix="/principios", tags=["principios activos"])
 
@@ -55,7 +64,23 @@ def detalle(principio_id: int, db: Session = Depends(get_db)) -> PrincipioDetall
         **PrincipioResumen.model_validate(principio).model_dump(),
         actualizado_en=principio.actualizado_en,
         disponibilidad=disponibilidad,
+        listas_esenciales=resumen_listas(db, principio_id),
     )
+
+
+@router.get("/{principio_id}/listas-esenciales", response_model=list[ItemListaEsencialSalida])
+def listas_esenciales(
+    principio_id: int, pais: str | None = Query(default=None, min_length=2, max_length=2),
+    incluir_excluidos: bool = False, db: Session = Depends(get_db),
+) -> list[ItemListaEsencial]:
+    """Entradas de listas nacionales de medicamentos esenciales (LINAME de Bolivia)."""
+    _obtener(db, principio_id)
+    consulta = select(ItemListaEsencial).where(ItemListaEsencial.principio_activo_id == principio_id)
+    if pais:
+        consulta = consulta.where(ItemListaEsencial.pais == pais.upper())
+    if not incluir_excluidos:
+        consulta = consulta.where(ItemListaEsencial.estado == "incluido")
+    return list(db.scalars(consulta.order_by(ItemListaEsencial.pais, ItemListaEsencial.codigo)))
 
 
 @router.get("/{principio_id}/productos", response_model=ListaProductos)

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Token opcional de datos.gov.co (Socrata): sube el límite de peticiones.
     datosgov_app_token: str | None = None
     invima_pausa_segundos: float = 0.2
+    agemed_pausa_segundos: float = 0.5
 
     csv_principios: Path = RAIZ_REPO / "data" / "principios_activos_iniciales.csv"
 

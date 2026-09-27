@@ -10,7 +10,7 @@
 
 | Tema | Decisión |
 |---|---|
-| **Países prioritarios** | 🇺🇸 Estados Unidos · 🇲🇽 México · 🇦🇷 Argentina · 🇨🇴 Colombia · 🇪🇸 España · 🇵🇪 Perú · 🇨🇱 Chile |
+| **Países prioritarios** | 🇺🇸 Estados Unidos · 🇲🇽 México · 🇦🇷 Argentina · 🇨🇴 Colombia · 🇪🇸 España · 🇵🇪 Perú · 🇨🇱 Chile · 🇧🇴 Bolivia |
 | **Estados Unidos** | Se incluye como país prioritario por su volumen de investigación y la apertura de sus datos: disponibilidad (FDA), fichas técnicas (DailyMed), farmacovigilancia (FAERS) y evidencia (PubMed, ClinicalTrials.gov). Ver §3.4. |
 | **Países secundarios** (fases posteriores) | Brasil, Portugal, Unión Europea — EMA se usa desde el inicio **solo como fuente de contenido clínico**, no de disponibilidad. |
 | **Contenido inicial** | 100 principios activos de uso frecuente → [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (propuesta a validar). |
@@ -88,6 +88,7 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 | 4 | Chile | ISP | Registro sanitario de productos farmacéuticos | Consulta web | Bioequivalente |
 | 5 | Perú | DIGEMID | Registro sanitario / Observatorio de productos farmacéuticos | Consulta web | — |
 | 6 | México | COFEPRIS | Registros sanitarios; Compendio Nacional de Insumos (CSG) | Consulta web / PDF | GI (genérico intercambiable) |
+| 7 | Bolivia | AGEMED | LINAME (lista nacional de medicamentos esenciales) en Excel; el registro sanitario no es público (buscador con reCAPTCHA) | Descarga oficial (LINAME); marcas por carga asistida | — |
 
 **Secundarios (fases posteriores):**
 
@@ -332,6 +333,6 @@ docs/
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
 2. ~~Crear el esqueleto del backend FastAPI (modelos, migraciones, búsqueda) y cargar la lista semilla.~~ Hecho — ver [`backend/README.md`](../backend/README.md). Pendiente: usuarios con roles y MFA.
-3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~, ~~fichas de DailyMed + flujo editorial de monografías~~, ~~AEMPS CIMA (medicamentos y fichas en español)~~ y ~~INVIMA CUM (Colombia)~~ hechos; pendientes Argentina (ANMAT), Chile (ISP), Perú (DIGEMID), México (COFEPRIS), RxNorm (EE. UU.) y el importador de referencias desde PubMed.
+3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~, ~~fichas de DailyMed + flujo editorial de monografías~~, ~~AEMPS CIMA (medicamentos y fichas en español)~~, ~~INVIMA CUM (Colombia)~~ y ~~LINAME de Bolivia (AGEMED)~~ hechos; pendientes Argentina (ANMAT), Chile (ISP), Perú (DIGEMID), México (COFEPRIS), RxNorm (EE. UU.) y el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.

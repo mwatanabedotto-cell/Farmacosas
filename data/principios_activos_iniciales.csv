@@ -6,7 +6,7 @@ n,dci_es,dci_en,atc,grupo,sinonimos,openfda_ingredientes,openfda_filtro_nombre,o
 5,metamizol,metamizole sodium,N02BB02,Analgesia y antiinflamatorios,dipirona|metamizol sódico,metamizole|dipyrone,,,
 6,tramadol,tramadol,N02AX02,Analgesia y antiinflamatorios,,tramadol,,,
 7,morfina,morphine,N02AA01,Analgesia y antiinflamatorios,,morphine,,,1f53de80-efc8-4930-b3e3-fba0d026af05
-8,fentanilo,fentanyl,N02AB03,Analgesia y antiinflamatorios,,fentanyl,,,
+8,fentanilo,fentanyl,N02AB03 / N01AH01,Analgesia y antiinflamatorios,,fentanyl,,,
 9,amoxicilina,amoxicillin,J01CA04,Antiinfecciosos,,amoxicillin,,,
 10,amoxicilina + ácido clavulánico,amoxicillin and beta-lactamase inhibitor,J01CR02,Antiinfecciosos,,amoxicillin+clavulanate|clavulanic acid,,,
 11,cefalexina,cefalexin,J01DB01,Antiinfecciosos,,cephalexin|cefalexin,,,
@@ -79,8 +79,8 @@ n,dci_es,dci_en,atc,grupo,sinonimos,openfda_ingredientes,openfda_filtro_nombre,o
 78,levetiracetam,levetiracetam,N03AX14,Neurología y psiquiatría,,levetiracetam,,,
 79,fenitoína,phenytoin,N03AB02,Neurología y psiquiatría,,phenytoin,,,
 80,ácido valproico,valproic acid,N03AG01,Neurología y psiquiatría,valproato|divalproato,valproic acid|valproate|divalproex,,,
-81,gabapentina,gabapentin,N03AX12,Neurología y psiquiatría,,gabapentin,,,
-82,pregabalina,pregabalin,N03AX16,Neurología y psiquiatría,,pregabalin,,,
+81,gabapentina,gabapentin,N02BF01 / N03AX12,Neurología y psiquiatría,,gabapentin,,,
+82,pregabalina,pregabalin,N02BF02 / N03AX16,Neurología y psiquiatría,,pregabalin,,,
 83,propofol,propofol,N01AX10,Anestesia y urgencias,,propofol,,,
 84,ketamina,ketamine,N01AX03,Anestesia y urgencias,,ketamine,,,
 85,lidocaína,lidocaine,N01BB02,Anestesia y urgencias,,lidocaine,,,1414bcfc-1543-4ad4-83bd-4fc444a02e92
