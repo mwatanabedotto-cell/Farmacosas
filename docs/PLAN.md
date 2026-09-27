@@ -132,37 +132,32 @@ literatura biomédica indexada, y publica casi todo por API pública:
 
 ---
 
-## 4. Contenido de la monografía
+## 4. Contenido de la monografía (formato vademécum)
 
-Orden de secciones (pensado para uso clínico rápido):
+La monografía es **una ficha breve de vademécum**, en español y pensada para leerse en segundos,
+no una copia de la ficha técnica. Orden:
 
-1. **Encabezado** — DCI, sinónimos, ATC, grupo terapéutico, badge de
-   *última actualización* y de *alertas de seguridad*.
-2. **Resumen clínico** (3–5 líneas).
-3. **Indicaciones** (aprobadas por agencia/región y *off-label* claramente marcado).
-4. **Posología** — adulto, pediatría, geriatría.
-5. **Ajustes** — insuficiencia renal (por TFG/ClCr), hepática (Child-Pugh), diálisis.
-6. **Contraindicaciones**.
-7. **Advertencias y precauciones** (incluye *boxed warnings*).
-8. **Interacciones** relevantes (gravedad, mecanismo, conducta).
-9. **Embarazo y lactancia**.
-10. **Reacciones adversas** (frecuentes / graves).
-11. **Farmacología** — mecanismo, farmacocinética (t½, metabolismo, excreción).
-12. **Consideraciones perioperatorias** (suspensión/reinicio, anticoagulantes,
-    antiagregantes, hipoglucemiantes — útil para cirugía).
-13. **Sobredosis y antídoto**.
-14. **Evidencia reciente** — metaanálisis y ensayos clave (PubMed) y ensayos
-    en curso (ClinicalTrials.gov), con fecha de búsqueda (ver §3.4).
-15. **Disponibilidad por región** (tabla, ver §5).
-16. **Referencias** — numeradas, estilo Vancouver, con enlace/DOI/PMID y
-    fecha de acceso.
-17. **Pie de página** — *Última actualización: AAAA-MM-DD · Versión N ·
-    Revisado por: …*
+1. **Cabecera**: DCI, ATC, grupo terapéutico, **nombres comerciales por país**, fecha de última
+   actualización, revisor e indicador de frescura.
+2. **Alerta destacada** (*boxed warning*), si existe.
+3. **Mecanismo de acción**.
+4. **Indicaciones** (aprobadas; *off-label* claramente marcado).
+5. **Posología en tabla de pautas**: indicación · población · dosis · vía · frecuencia · duración ·
+   dosis máxima · notas.
+6. **Modo de administración**.
+7. **Contraindicaciones**.
+8. **Advertencias y precauciones**.
+9. **Insuficiencia renal** (por ClCr/TFG, diálisis) · 10. **Insuficiencia hepática** (Child-Pugh).
+11. **Interacciones**.
+12. **Embarazo** · 13. **Lactancia**.
+14. **Reacciones adversas**.
+15. **Sobredosis y antídoto**.
+16. **Consideraciones perioperatorias** (suspensión/reinicio, anestesia neuraxial…).
+    *Fase 2:* **Evidencia reciente** (PubMed / ClinicalTrials.gov, ver §3.4).
+17. **Referencias** numeradas al final, estilo Vancouver, con enlace, DOI/PMID y fecha de consulta.
 
-Cada sección muestra su propia fecha de verificación y las citas en línea `[1]`,
-`[2]` que apuntan a la lista de referencias.
-
----
+Cada sección y cada pauta muestran sus citas `[1]`, `[2]`, y cada sección su fecha de verificación.
+La ficha técnica oficial completa (texto original) queda accesible aparte, como fuente.
 
 ## 5. Disponibilidad por región
 
@@ -337,6 +332,6 @@ docs/
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
 2. ~~Crear el esqueleto del backend FastAPI (modelos, migraciones, búsqueda) y cargar la lista semilla.~~ Hecho — ver [`backend/README.md`](../backend/README.md). Pendiente: usuarios con roles y MFA.
-3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~ hecho; DailyMed/RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
+3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~ y ~~fichas de DailyMed + flujo editorial de monografías~~ hechos; RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.

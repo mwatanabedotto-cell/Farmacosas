@@ -2,6 +2,7 @@
 
     python -m app.cli sembrar [--csv RUTA]
     python -m app.cli sincronizar-openfda [--dci enoxaparina ...]
+    python -m app.cli importar-fichas [--dci enoxaparina ...]
 """
 
 import argparse
@@ -15,7 +16,7 @@ from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import PrincipioActivo
-from app.services import sync_openfda
+from app.services import fichas, sync_openfda
 from app.services.semilla import cargar_principios
 
 
@@ -26,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
     p_sembrar.add_argument("--csv", type=Path, default=None)
     p_sync = sub.add_parser("sincronizar-openfda", help="Descarga productos de EE. UU. desde openFDA")
     p_sync.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
+    p_fichas = sub.add_parser("importar-fichas", help="Importa fichas técnicas de DailyMed y genera borradores")
+    p_fichas.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -51,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
             pausa_segundos=settings.openfda_pausa_segundos,
         )
         errores = 0
+        if args.comando == "importar-fichas":
+            for s in fichas.importar_fichas(db, cliente, ids):
+                print(f"{s.principio_activo.dci_es:35} {s.estado:6} {s.mensaje}")
+                errores += s.estado == "error"
+            return 1 if errores else 0
         for s in sync_openfda.sincronizar(db, cliente, ids):
             nombre = s.principio_activo.dci_es if s.principio_activo else "?"
             print(

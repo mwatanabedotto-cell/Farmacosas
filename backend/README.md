@@ -11,7 +11,8 @@ pip install -e ".[dev]"            # añade ",postgres" para usar PostgreSQL
 
 alembic upgrade head               # crea las tablas (SQLite por defecto: ./farmacosas.db)
 python -m app.cli sembrar          # carga los 100 principios activos de data/
-python -m app.cli sincronizar-openfda --dci enoxaparina   # sin --dci sincroniza los 100
+python -m app.cli sincronizar-openfda --dci enoxaparina   # productos de EE. UU. (sin --dci: los 100)
+python -m app.cli importar-fichas --dci enoxaparina       # ficha técnica de DailyMed + borrador de monografía
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -34,8 +35,21 @@ uvicorn app.main:app --reload      # documentación interactiva en http://localh
 | GET | `/api/v1/principios?grupo=` | Lista de principios activos |
 | GET | `/api/v1/principios/{id}` | Detalle con resumen de disponibilidad por país |
 | GET | `/api/v1/principios/{id}/productos?pais=&estado=&es_generico=` | Productos comerciales con presentaciones, registro, fuente y fecha de verificación |
-| POST | `/api/v1/admin/sincronizaciones/openfda` | Lanza una sincronización (`{"principio_ids": [..]}` o todos) — requiere `X-Admin-Key` |
-| GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones — requiere `X-Admin-Key` |
+| GET | `/api/v1/principios/{id}/monografia` | **Monografía publicada en formato vademécum** (404 si no hay) |
+| GET | `/api/v1/principios/{id}/fichas-tecnicas?pais=` | Ficha técnica oficial, texto original por secciones |
+
+Administración (cabecera `X-Admin-Key`):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/admin/sincronizaciones/openfda` | Sincroniza productos de EE. UU. (`{"principio_ids": [..]}` o todos) |
+| POST | `/api/v1/admin/sincronizaciones/fichas-openfda` | Importa fichas técnicas y actualiza borradores |
+| GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
+| GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
+| PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
+| PUT | `/api/v1/admin/monografias/{id}/pautas` | Sustituye la tabla de posología |
+| POST | `/api/v1/admin/monografias/{id}/publicar` | Publica (`revisor` y `checklist` completa) |
+| POST / GET | `/api/v1/admin/referencias` | Crea (deduplica por PMID/DOI) y busca referencias |
 
 ## Conector openFDA (EE. UU.)
 
@@ -55,6 +69,8 @@ Fuente: [NDC Directory](https://open.fda.gov/apis/drug/ndc/) (dominio público).
 - Si un producto deja de aparecer en una descarga **completa**, pasa a `no_listado` (no se borra).
   Si la descarga se trunca por el límite, no se marca ninguna baja.
 
+- Columnas del CSV para openFDA: `openfda_ingredientes`, `openfda_filtro_nombre`, `openfda_vias`
+  (vías preferidas para la ficha, separadas por `|`) y `openfda_ficha_set_id` (ficha fijada a mano).
 - Columna opcional `openfda_filtro_nombre`: expresión regular sobre el nombre comercial
   (con `!` delante, excluye). Se usa cuando la FDA registra productos distintos con el mismo
   ingrediente: insulina humana regular, NPH y las mezclas 70/30 figuran todas como
@@ -69,6 +85,47 @@ Los 100 principios activos se sincronizaron sin errores ni truncamientos (~22 00
 Sin productos en EE. UU., lo cual es correcto: metamizol (solo principio activo a granel)
 y butilbromuro de hioscina (no aprobados en EE. UU.). Sulfato ferroso tiene 1 producto porque
 en EE. UU. el hierro oral se comercializa mayoritariamente como suplemento dietético, fuera del NDC.
+
+## Monografías en formato vademécum
+
+Cada principio activo tiene una monografía breve y estructurada, en este orden:
+
+alerta destacada · mecanismo de acción · indicaciones · **posología (tabla de pautas)** ·
+modo de administración · contraindicaciones · advertencias y precauciones · insuficiencia renal ·
+insuficiencia hepática · interacciones · embarazo · lactancia · reacciones adversas · sobredosis ·
+consideraciones perioperatorias
+
+La vista pública añade la cabecera (DCI, ATC, grupo), los **nombres comerciales por país**, la
+fecha de última actualización, quién la revisó, un indicador de frescura (🟢 < 6 meses,
+🟡 6–12 meses, 🔴 > 12 meses **o la ficha oficial cambió después de la revisión**) y las
+**referencias numeradas al final** (estilo Vancouver), citadas como `[n]` en cada sección y pauta.
+
+La **posología** se publica como pautas estructuradas: indicación, población (adultos, pediatría,
+geriatría, todas), dosis, vía, frecuencia, duración, dosis máxima y notas, cada una con sus referencias.
+
+### Flujo editorial
+
+1. `importar-fichas` descarga la ficha técnica de referencia y genera (o actualiza) un **borrador**:
+   cada sección se rellena con el texto original de la ficha, con la ficha ya citada. Para
+   insuficiencia renal/hepática, embarazo y lactancia se extraen solo las frases pertinentes.
+2. El editor reescribe cada sección en español, en formato breve, y carga las pautas.
+3. Para **publicar**, el sistema exige: la checklist completa (dosis, ajustes, contraindicaciones,
+   interacciones, referencias), que no quede texto importado sin revisar, las secciones obligatorias
+   (indicaciones, contraindicaciones, advertencias), al menos una pauta y referencias en cada
+   sección y pauta. Las secciones de más de 1500 caracteres o no escritas en español generan
+   avisos, sin bloquear la publicación.
+4. Si la ficha oficial cambia, la monografía publicada pasa a 🔴 y se crea un borrador nuevo que
+   conserva lo revisado (y las pautas) y rellena desde la ficha nueva lo que no lo estaba.
+   Publicarlo archiva la versión anterior.
+
+### Elección de la ficha de referencia
+
+Entre los productos de EE. UU. del principio activo se prefiere: (1) una vía sistémica (o las
+de `openfda_vias`); (2) con receta y de marca (NDA/BLA); (3) el comercializado primero. Se descartan
+así colirios, parches, implantes o reformulaciones recientes. Cuando la elección automática no es
+la adecuada para un vademécum, se fija a mano con `openfda_ficha_set_id` (set_id de DailyMed); si esa
+ficha deja de existir se vuelve a la selección automática. Hoy hay 12 fichas fijadas a mano
+(p. ej. Lipitor, Coreg, Humulin R, Marcaine, Xylocaine, Adrenalin).
 
 ## Pruebas
 

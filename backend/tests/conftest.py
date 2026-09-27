@@ -64,3 +64,18 @@ def producto_ndc(ndc: str, ingredientes: list[tuple[str, str]], **extra) -> dict
     }
     base.update(extra)
     return base
+
+
+def ficha_label(set_id: str, spl_id: str = "spl-1", version: str = "1", **secciones) -> dict:
+    """Registro con la forma de /drug/label de openFDA."""
+    base = {
+        "set_id": set_id,
+        "id": spl_id,
+        "version": version,
+        "effective_time": "20260528",
+        "openfda": {"brand_name": ["Lovenox"], "generic_name": ["ENOXAPARIN SODIUM"],
+                    "manufacturer_name": ["Sanofi-Aventis U.S. LLC"], "application_number": ["NDA020164"],
+                    "product_type": ["HUMAN PRESCRIPTION DRUG"]},
+    }
+    base.update({k: [v] for k, v in secciones.items()})
+    return base

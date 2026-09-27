@@ -1,11 +1,7 @@
 from fastapi import FastAPI
 
-from app.api import admin, busqueda, principios
-
-AVISO = (
-    "La información de Farmacosas apoya, pero no sustituye, el juicio clínico "
-    "ni la ficha técnica aprobada en cada país."
-)
+from app.api import admin, busqueda, monografias, principios
+from app.core.avisos import AVISO
 
 app = FastAPI(
     title="Farmacosas API",
@@ -15,6 +11,7 @@ app = FastAPI(
 
 app.include_router(busqueda.router, prefix="/api/v1")
 app.include_router(principios.router, prefix="/api/v1")
+app.include_router(monografias.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 
 

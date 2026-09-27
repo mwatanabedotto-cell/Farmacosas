@@ -166,3 +166,15 @@ def test_fusiona_ndc_duplicados_en_varias_fichas():
 )
 def test_filtro_por_nombre(nombre, filtro, esperado):
     assert nombre_cumple_filtro(nombre, filtro) is esperado
+
+
+def test_buscar_fichas_por_set_id():
+    busquedas = []
+
+    def manejador(req):
+        busquedas.append((req.url.params["search"], req.url.params["limit"]))
+        return httpx.Response(200, json={"results": [{"set_id": "b", "id": "x"}]})
+
+    assert cliente_con(manejador).buscar_fichas(["a", "b"]) == {"b": {"set_id": "b", "id": "x"}}
+    assert busquedas == [('set_id:"a" set_id:"b"', "2")]
+    assert cliente_con(lambda req: httpx.Response(404)).buscar_fichas(["a"]) == {}

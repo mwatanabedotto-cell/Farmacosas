@@ -21,6 +21,33 @@ URL_NDC = "https://api.fda.gov/drug/ndc.json?search=product_ndc:%22{}%22"
 CATEGORIAS_GENERICO = {"ANDA", "NDA AUTHORIZED GENERIC"}
 CATEGORIAS_MARCA = {"NDA", "BLA"}
 SEPARADORES = set(" ,-(/")
+MAX_SET_IDS_POR_CONSULTA = 10
+
+# Secciones de la ficha (drug label) que se importan, en orden de lectura clínica.
+# Las fichas antiguas usan "warnings"/"precautions" y "nursing_mothers" en lugar de las actuales.
+SECCIONES_FICHA: dict[str, str] = {
+    "boxed_warning": "Advertencia en recuadro (boxed warning)",
+    "indications_and_usage": "Indicaciones y uso",
+    "dosage_and_administration": "Posología y administración",
+    "dosage_forms_and_strengths": "Formas farmacéuticas y concentraciones",
+    "contraindications": "Contraindicaciones",
+    "warnings_and_cautions": "Advertencias y precauciones",
+    "warnings": "Advertencias",
+    "precautions": "Precauciones",
+    "drug_interactions": "Interacciones",
+    "use_in_specific_populations": "Uso en poblaciones específicas",
+    "pregnancy": "Embarazo",
+    "lactation": "Lactancia",
+    "nursing_mothers": "Lactancia",
+    "pediatric_use": "Uso pediátrico",
+    "geriatric_use": "Uso geriátrico",
+    "adverse_reactions": "Reacciones adversas",
+    "overdosage": "Sobredosis",
+    "mechanism_of_action": "Mecanismo de acción",
+    "pharmacodynamics": "Farmacodinamia",
+    "pharmacokinetics": "Farmacocinética",
+    "clinical_pharmacology": "Farmacología clínica",
+}
 
 
 class OpenFDAError(Exception):
@@ -69,6 +96,15 @@ class OpenFDAClient:
                 break
             self.dormir(self.pausa_segundos)
         return ResultadoBusqueda(resultados=resultados, total=total, truncado=len(resultados) < total)
+
+    def buscar_fichas(self, set_ids: list[str]) -> dict[str, dict]:
+        """Devuelve las fichas técnicas (drug label) vigentes de los set_id indicados, por set_id."""
+        set_ids = set_ids[:MAX_SET_IDS_POR_CONSULTA]
+        if not set_ids:
+            return {}
+        busqueda = " ".join(f'set_id:"{s.replace(chr(34), "")}"' for s in set_ids)
+        datos = self._get("/drug/label.json", {"search": busqueda, "limit": len(set_ids)})
+        return {f["set_id"]: f for f in (datos or {}).get("results") or [] if f.get("set_id")}
 
     def _get(self, ruta: str, params: dict) -> dict | None:
         if self.api_key:
@@ -216,6 +252,7 @@ def normalizar_producto(producto: dict, hoy: date | None = None) -> dict:
         "estado": estado_listado(producto, hoy),
         "url_fuente": URL_NDC.format(ndc),
         "url_ficha": URL_DAILYMED.format(set_ids[0]) if set_ids else None,
+        "spl_set_id": set_ids[0] if set_ids else None,
         "presentaciones": sorted(
             (
                 {
@@ -227,4 +264,47 @@ def normalizar_producto(producto: dict, hoy: date | None = None) -> dict:
             ),
             key=lambda p: p["id_externo"] or "",
         ),
+    }
+
+# Secciones "madre" que en openFDA incluyen el texto de sus subsecciones.
+SUBSECCIONES = {
+    "use_in_specific_populations": ("pregnancy", "lactation", "nursing_mothers", "pediatric_use", "geriatric_use"),
+    "clinical_pharmacology": ("mechanism_of_action", "pharmacodynamics", "pharmacokinetics"),
+}
+
+
+def secciones_sin_duplicar(secciones: dict[str, str]) -> list[str]:
+    """Códigos a mostrar: omite subsecciones cuyo texto ya está dentro de su sección madre."""
+    omitir = set()
+    for madre, hijas in SUBSECCIONES.items():
+        texto_madre = secciones.get(madre)
+        if texto_madre:
+            omitir.update(h for h in hijas if secciones.get(h) and secciones[h] in texto_madre)
+    return [c for c in secciones if c not in omitir]
+
+
+def normalizar_ficha(ficha: dict) -> dict:
+    """Convierte un registro de /drug/label al formato de FichaTecnica."""
+    info = ficha.get("openfda") or {}
+    marca = (info.get("brand_name") or [None])[0]
+    if marca and marca.strip().upper() in {"N/A", "NA", "NONE"}:
+        marca = None
+    generico = (info.get("generic_name") or [None])[0]
+    titulo = " ".join(x for x in [marca, f"({generico.lower()})" if generico and generico != marca else None] if x)
+    secciones = []
+    for orden, codigo in enumerate(SECCIONES_FICHA):
+        partes = [p.strip() for p in ficha.get(codigo) or [] if p and p.strip()]
+        if partes:
+            secciones.append({"codigo": codigo, "orden": orden, "texto": "\n\n".join(partes)})
+    return {
+        "set_id": ficha["set_id"],
+        "spl_id": ficha["id"],
+        "version": ficha.get("version"),
+        "fecha_efectiva": _fecha_iso(ficha.get("effective_time")),
+        "titulo": titulo or generico or ficha["set_id"],
+        "laboratorio": (info.get("manufacturer_name") or [None])[0],
+        "n_registro": (info.get("application_number") or [None])[0],
+        "tipo_producto": (info.get("product_type") or [None])[0],
+        "url": URL_DAILYMED.format(ficha["set_id"]),
+        "secciones": secciones,
     }

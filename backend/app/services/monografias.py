@@ -1,0 +1,429 @@
+"""Monografías en formato vademécum: borrador desde la ficha técnica, edición, publicación y vista pública.
+
+Regla central: el texto importado de una ficha nunca se publica sin revisión. Cada
+sección publicada la redacta o revisa un editor y cita al menos una referencia, y la
+posología se publica como pautas estructuradas (indicación, población, dosis, vía...).
+"""
+
+import re
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy import delete, func, insert, select
+from sqlalchemy.orm import Session
+
+from app.models import (
+    FichaTecnica,
+    Monografia,
+    PautaPosologica,
+    PrincipioActivo,
+    ProductoComercial,
+    Referencia,
+    SeccionMonografia,
+    ahora,
+    cita_pauta,
+    cita_seccion,
+    producto_principio,
+)
+
+
+@dataclass(frozen=True)
+class TipoSeccion:
+    tipo: str
+    titulo: str
+    fuentes: tuple[str, ...] = ()
+    # Se usan solo si ninguna de las fuentes principales tiene texto.
+    fuentes_alternativas: tuple[str, ...] = ()
+    # El texto de estas secciones se elimina del resultado (ya se muestra en otra sección).
+    excluir: tuple[str, ...] = ()
+    # Si se indica, del texto de las fuentes solo se conservan las frases que coinciden.
+    filtro: str | None = None
+    # Igual, pero solo para las fuentes alternativas.
+    filtro_alternativas: str | None = None
+    obligatoria: bool = False
+
+
+RENAL = r"\b(renal|kidney|creatinine clearance|CrCl|CLcr|eGFR|dialysis|hemodialysis)\b"
+HEPATICA = r"\b((hepatic|liver) (impairment|insufficiency|disease|dysfunction)|Child-Pugh|cirrhosis)\b"
+EMBARAZO = r"\b(pregnan\w*|fetal|fetus|teratogen\w*)\b"
+LACTANCIA = r"\b(lactation|lactating|breast[- ]?(fed|feeding|milk)|breastfe\w*|nursing|human milk)\b"
+
+# Texto que no debe arrastrarse a las extracciones renal/hepática (tiene sus propias secciones).
+OTRAS_POBLACIONES = ("pregnancy", "lactation", "nursing_mothers", "pediatric_use")
+
+# Orden de un vademécum. La posología se completa con pautas estructuradas.
+TIPOS_SECCION: tuple[TipoSeccion, ...] = (
+    TipoSeccion("alerta", "Alerta destacada", ("boxed_warning",)),
+    TipoSeccion("mecanismo_accion", "Mecanismo de acción", ("mechanism_of_action",), ("clinical_pharmacology",)),
+    TipoSeccion("indicaciones", "Indicaciones", ("indications_and_usage",), obligatoria=True),
+    TipoSeccion("posologia", "Posología: notas generales", ("dosage_and_administration",)),
+    TipoSeccion("modo_administracion", "Modo de administración"),
+    TipoSeccion("contraindicaciones", "Contraindicaciones", ("contraindications",), obligatoria=True),
+    TipoSeccion("advertencias", "Advertencias y precauciones",
+                ("warnings_and_cautions", "warnings", "precautions"), obligatoria=True),
+    TipoSeccion("insuficiencia_renal", "Insuficiencia renal",
+                ("dosage_and_administration", "use_in_specific_populations"), excluir=OTRAS_POBLACIONES, filtro=RENAL),
+    TipoSeccion("insuficiencia_hepatica", "Insuficiencia hepática",
+                ("dosage_and_administration", "use_in_specific_populations"), excluir=OTRAS_POBLACIONES,
+                filtro=HEPATICA),
+    TipoSeccion("interacciones", "Interacciones", ("drug_interactions",)),
+    TipoSeccion("embarazo", "Embarazo", ("pregnancy",), ("use_in_specific_populations",), filtro_alternativas=EMBARAZO),
+    TipoSeccion("lactancia", "Lactancia", ("lactation", "nursing_mothers"), ("use_in_specific_populations",),
+                filtro_alternativas=LACTANCIA),
+    TipoSeccion("reacciones_adversas", "Reacciones adversas", ("adverse_reactions",)),
+    TipoSeccion("sobredosis", "Sobredosis", ("overdosage",)),
+    TipoSeccion("perioperatorio", "Consideraciones perioperatorias"),
+)
+TIPOS = {t.tipo: t for t in TIPOS_SECCION}
+
+POBLACIONES = ("adultos", "pediatria", "geriatria", "todas")
+
+CHECKLIST = {
+    "dosis_verificadas": "Dosis, unidades, vías e intervalos comprobados contra la fuente",
+    "ajustes_verificados": "Ajustes en insuficiencia renal/hepática y poblaciones especiales comprobados",
+    "contraindicaciones_y_advertencias_verificadas": "Contraindicaciones y advertencias (incl. alerta destacada) completas",
+    "interacciones_verificadas": "Interacciones relevantes revisadas",
+    "referencias_verificadas": "Cada sección y pauta cita su fuente y los enlaces funcionan",
+}
+
+# Formato vademécum: textos breves. Por encima de esto se sugiere resumir (no bloquea).
+MAX_CARACTERES_SECCION = 1500
+
+DIAS_AMARILLO = 183
+DIAS_ROJO = 365
+MAX_MARCAS_POR_PAIS = 15
+
+
+class ErrorEditorial(Exception):
+    def __init__(self, errores: list[str]):
+        super().__init__("; ".join(errores))
+        self.errores = errores
+
+
+# --- Referencias -----------------------------------------------------------------
+
+def referencia_de_ficha(db: Session, ficha: FichaTecnica) -> Referencia:
+    clave = f"dailymed:{ficha.set_id}:{ficha.version}"
+    ref = db.scalar(select(Referencia).where(Referencia.clave == clave))
+    if ref is None:
+        ref = Referencia(
+            clave=clave,
+            tipo="ficha_tecnica",
+            titulo=ficha.titulo,
+            publicacion=ficha.laboratorio,
+            fecha_publicacion=ficha.fecha_efectiva,
+            url=ficha.url,
+            fecha_acceso=ficha.fecha_extraccion.date().isoformat(),
+        )
+        db.add(ref)
+        db.flush()
+    return ref
+
+
+def formato_vancouver(ref: Referencia) -> str:
+    anio = (ref.fecha_publicacion or "")[:4]
+    if ref.tipo == "articulo":
+        partes = [ref.autores, ref.titulo, ref.publicacion, anio]
+        texto = ". ".join(p.rstrip(".") for p in partes if p) + "."
+        if ref.doi:
+            texto += f" doi:{ref.doi}."
+        if ref.pmid:
+            texto += f" PMID: {ref.pmid}."
+        return texto
+    titulo = f"{ref.titulo} [ficha técnica]" if ref.tipo == "ficha_tecnica" else ref.titulo
+    texto = ". ".join(p.rstrip(".") for p in [ref.autores, titulo] if p) + "."
+    editorial = "; ".join(p for p in [ref.publicacion, ref.fecha_publicacion] if p)
+    if editorial:
+        texto += f" {editorial}."
+    if ref.url:
+        texto += f" Disponible en: {ref.url}."
+    return texto + f" Consultado: {ref.fecha_acceso}."
+
+
+def _fijar_citas(db: Session, tabla, columna: str, objeto, referencia_ids: list[int]) -> None:
+    db.execute(delete(tabla).where(tabla.c[columna] == objeto.id))
+    ids = list(dict.fromkeys(referencia_ids))
+    if ids:
+        db.execute(insert(tabla), [{columna: objeto.id, "referencia_id": rid, "orden": i} for i, rid in enumerate(ids)])
+    db.expire(objeto, ["referencias"])
+
+
+def _validar_referencias(db: Session, referencia_ids: list[int]) -> None:
+    existentes = set(db.scalars(select(Referencia.id).where(Referencia.id.in_(referencia_ids))))
+    faltan = [i for i in referencia_ids if i not in existentes]
+    if faltan:
+        raise ErrorEditorial([f"Referencias inexistentes: {faltan}"])
+
+
+# --- Borrador --------------------------------------------------------------------
+
+def _frases(texto: str) -> list[str]:
+    return [f.strip() for f in re.split(r"(?<=[.;])\s+(?=[A-Z0-9(•])", texto) if f.strip()]
+
+
+def texto_desde_ficha(ficha: FichaTecnica, tipo: TipoSeccion) -> str | None:
+    por_codigo = {s.codigo: s.texto for s in ficha.secciones}
+    for codigos, filtro in ((tipo.fuentes, tipo.filtro), (tipo.fuentes_alternativas, tipo.filtro_alternativas)):
+        textos = [por_codigo[c] for c in codigos if por_codigo.get(c)]
+        if not textos:
+            continue
+        texto = "\n\n".join(textos)
+        for c in tipo.excluir:
+            if por_codigo.get(c):
+                texto = texto.replace(por_codigo[c], "")
+        if filtro:
+            patron = re.compile(filtro, re.IGNORECASE)
+            frases = [f for f in _frases(texto) if patron.search(f)]
+            texto = "\n".join(dict.fromkeys(frases))
+        return re.sub(r"[ \t]{2,}", " ", texto).strip() or None
+    return None
+
+
+def monografia_en_estado(db: Session, principio_id: int, estado: str) -> Monografia | None:
+    return db.scalar(
+        select(Monografia)
+        .where(Monografia.principio_activo_id == principio_id, Monografia.estado == estado)
+        .order_by(Monografia.version.desc())
+    )
+
+
+def _rellenar_desde_ficha(db: Session, seccion: SeccionMonografia, ficha: FichaTecnica, ref: Referencia) -> None:
+    texto = texto_desde_ficha(ficha, TIPOS[seccion.tipo])
+    seccion.contenido = texto
+    seccion.idioma = ficha.idioma
+    seccion.origen = "ficha_importada" if texto else "vacia"
+    seccion.fecha_verificacion = None
+    db.flush()
+    _fijar_citas(db, cita_seccion, "seccion_id", seccion, [ref.id] if texto else [])
+
+
+def generar_borrador(db: Session, principio: PrincipioActivo, ficha: FichaTecnica) -> Monografia | None:
+    """Crea o actualiza el borrador a partir de la ficha. Idempotente.
+
+    - Si hay borrador: se refrescan solo las secciones aún no revisadas.
+    - Si la versión publicada ya se basa en esta versión de la ficha: no hace nada.
+    - Si no: crea un borrador nuevo que conserva las secciones revisadas y las pautas de
+      la versión publicada, y rellena el resto con el texto de la ficha.
+    """
+    borrador = monografia_en_estado(db, principio.id, "borrador")
+    publicada = monografia_en_estado(db, principio.id, "publicada")
+    ref = referencia_de_ficha(db, ficha)
+
+    if borrador is not None:
+        if borrador.ficha_id == ficha.id and borrador.ficha_spl_id_base == ficha.spl_id:
+            return borrador
+        for seccion in borrador.secciones:
+            if seccion.origen != "editor":
+                _rellenar_desde_ficha(db, seccion, ficha, ref)
+        borrador.ficha, borrador.ficha_spl_id_base = ficha, ficha.spl_id
+        db.commit()
+        return borrador
+
+    if publicada is not None and publicada.ficha_id == ficha.id and publicada.ficha_spl_id_base == ficha.spl_id:
+        return None
+
+    version = (db.scalar(select(func.max(Monografia.version)).where(Monografia.principio_activo_id == principio.id)) or 0) + 1
+    borrador = Monografia(principio_activo=principio, version=version, estado="borrador",
+                          ficha=ficha, ficha_spl_id_base=ficha.spl_id)
+    db.add(borrador)
+    previas = {s.tipo: s for s in publicada.secciones} if publicada else {}
+    for orden, tipo in enumerate(TIPOS_SECCION):
+        seccion = SeccionMonografia(monografia=borrador, tipo=tipo.tipo, orden=orden, origen="vacia")
+        db.add(seccion)
+        db.flush()
+        previa = previas.get(tipo.tipo)
+        if previa is not None and previa.origen == "editor":
+            seccion.contenido, seccion.idioma, seccion.origen = previa.contenido, previa.idioma, "editor"
+            seccion.fecha_verificacion = previa.fecha_verificacion
+            _fijar_citas(db, cita_seccion, "seccion_id", seccion, [r.id for r in previa.referencias])
+        else:
+            _rellenar_desde_ficha(db, seccion, ficha, ref)
+    for pauta in publicada.pautas if publicada else []:
+        _crear_pauta(db, borrador, pauta.orden, datos_pauta(pauta), [r.id for r in pauta.referencias])
+    db.commit()
+    return borrador
+
+
+# --- Edición y publicación -------------------------------------------------------
+
+def editar_seccion(
+    db: Session, monografia: Monografia, tipo: str, contenido: str | None, idioma: str, referencia_ids: list[int]
+) -> SeccionMonografia:
+    if monografia.estado != "borrador":
+        raise ErrorEditorial(["Solo se pueden editar borradores"])
+    seccion = next((s for s in monografia.secciones if s.tipo == tipo), None)
+    if seccion is None:
+        raise ErrorEditorial([f"Sección desconocida: {tipo}"])
+    _validar_referencias(db, referencia_ids)
+
+    contenido = (contenido or "").strip() or None
+    seccion.contenido = contenido
+    seccion.idioma = idioma
+    seccion.origen = "editor" if contenido else "vacia"
+    seccion.fecha_verificacion = ahora() if contenido else None
+    db.flush()
+    _fijar_citas(db, cita_seccion, "seccion_id", seccion, referencia_ids if contenido else [])
+    monografia.actualizada_en = ahora()
+    db.commit()
+    return seccion
+
+
+CAMPOS_PAUTA = ("indicacion", "poblacion", "dosis", "via", "frecuencia", "duracion", "dosis_maxima", "notas")
+
+
+def datos_pauta(pauta: PautaPosologica) -> dict:
+    return {c: getattr(pauta, c) for c in CAMPOS_PAUTA}
+
+
+def _crear_pauta(db: Session, monografia: Monografia, orden: int, datos: dict, referencia_ids: list[int]) -> PautaPosologica:
+    pauta = PautaPosologica(monografia=monografia, orden=orden, **datos)
+    db.add(pauta)
+    db.flush()
+    _fijar_citas(db, cita_pauta, "pauta_id", pauta, referencia_ids)
+    return pauta
+
+
+def reemplazar_pautas(db: Session, monografia: Monografia, pautas: list[tuple[dict, list[int]]]) -> None:
+    """Sustituye todas las pautas del borrador. Cada elemento: (datos, referencia_ids)."""
+    if monografia.estado != "borrador":
+        raise ErrorEditorial(["Solo se pueden editar borradores"])
+    errores = [f"Pauta {i + 1}: población no válida" for i, (d, _) in enumerate(pautas) if d["poblacion"] not in POBLACIONES]
+    if errores:
+        raise ErrorEditorial(errores)
+    _validar_referencias(db, [rid for _, ids in pautas for rid in ids])
+    ids = [p.id for p in monografia.pautas]
+    if ids:
+        db.execute(delete(cita_pauta).where(cita_pauta.c.pauta_id.in_(ids)))
+    monografia.pautas.clear()
+    db.flush()
+    for orden, (datos, referencia_ids) in enumerate(pautas):
+        _crear_pauta(db, monografia, orden, datos, referencia_ids)
+    monografia.actualizada_en = ahora()
+    db.commit()
+    db.refresh(monografia)
+
+
+def errores_publicacion(monografia: Monografia, checklist: dict[str, bool]) -> list[str]:
+    errores = []
+    if monografia.estado != "borrador":
+        errores.append("Solo se pueden publicar borradores")
+    pendientes = [k for k in CHECKLIST if not checklist.get(k)]
+    if pendientes:
+        errores.append(f"Checklist incompleta: {', '.join(pendientes)}")
+    for s in monografia.secciones:
+        titulo = TIPOS[s.tipo].titulo
+        if s.origen == "ficha_importada":
+            errores.append(f"«{titulo}» contiene texto importado sin revisar")
+        elif s.origen == "vacia" and TIPOS[s.tipo].obligatoria:
+            errores.append(f"«{titulo}» es obligatoria")
+        elif s.origen == "editor" and not s.referencias:
+            errores.append(f"«{titulo}» no tiene referencias")
+    if not monografia.pautas:
+        errores.append("La posología necesita al menos una pauta estructurada")
+    errores += [f"Pauta {p.orden + 1} ({p.indicacion}) no tiene referencias" for p in monografia.pautas if not p.referencias]
+    return errores
+
+
+def avisos_formato(monografia: Monografia) -> list[str]:
+    """Sugerencias que no bloquean la publicación."""
+    avisos = []
+    for s in monografia.secciones:
+        if s.origen == "editor" and s.contenido and len(s.contenido) > MAX_CARACTERES_SECCION:
+            avisos.append(f"«{TIPOS[s.tipo].titulo}» tiene {len(s.contenido)} caracteres; "
+                          f"en formato vademécum conviene resumir a menos de {MAX_CARACTERES_SECCION}")
+        if s.origen == "editor" and s.idioma != "es":
+            avisos.append(f"«{TIPOS[s.tipo].titulo}» no está en español")
+    return avisos
+
+
+def publicar(db: Session, monografia: Monografia, revisor: str, checklist: dict[str, bool]) -> Monografia:
+    errores = errores_publicacion(monografia, checklist)
+    if errores:
+        raise ErrorEditorial(errores)
+    anterior = monografia_en_estado(db, monografia.principio_activo_id, "publicada")
+    if anterior is not None:
+        anterior.estado = "archivada"
+    monografia.estado = "publicada"
+    monografia.publicada_en = ahora()
+    monografia.revisado_por = revisor
+    db.commit()
+    return monografia
+
+
+# --- Vista pública ---------------------------------------------------------------
+
+def frescura(monografia: Monografia, ficha_actual: FichaTecnica | None, momento: datetime | None = None) -> dict:
+    momento = momento or ahora()
+    if ficha_actual is not None and monografia.ficha_id == ficha_actual.id and ficha_actual.spl_id != monografia.ficha_spl_id_base:
+        return {"nivel": "rojo", "motivo": "La ficha técnica oficial cambió después de la última revisión"}
+    fechas = [s.fecha_verificacion for s in monografia.secciones if s.origen == "editor" and s.fecha_verificacion]
+    referencia = min(fechas) if fechas else monografia.publicada_en or monografia.creada_en
+    dias = (momento - referencia).days
+    nivel = "rojo" if dias >= DIAS_ROJO else "amarillo" if dias >= DIAS_AMARILLO else "verde"
+    return {"nivel": nivel, "motivo": f"Sección más antigua verificada hace {dias} días"}
+
+
+def nombres_comerciales(db: Session, principio_id: int) -> list[dict]:
+    """Resumen por país: marcas vigentes (sin repetir) y número de genéricos."""
+    filas = db.execute(
+        select(ProductoComercial.pais, ProductoComercial.nombre_comercial, ProductoComercial.es_generico)
+        .join(producto_principio, producto_principio.c.producto_id == ProductoComercial.id)
+        .where(producto_principio.c.principio_activo_id == principio_id, ProductoComercial.estado == "vigente")
+        .order_by(ProductoComercial.pais, ProductoComercial.nombre_comercial)
+    ).all()
+    paises: dict[str, dict] = {}
+    for pais, nombre, generico in filas:
+        datos = paises.setdefault(pais, {"pais": pais, "marcas": {}, "productos": 0, "genericos": 0})
+        datos["productos"] += 1
+        datos["genericos"] += bool(generico)
+        if generico is False:
+            datos["marcas"].setdefault(nombre.upper(), nombre)
+    return [
+        {**d, "marcas": list(d["marcas"].values())[:MAX_MARCAS_POR_PAIS]} for d in paises.values()
+    ]
+
+
+def vista_publica(db: Session, principio: PrincipioActivo) -> dict | None:
+    monografia = monografia_en_estado(db, principio.id, "publicada")
+    if monografia is None:
+        return None
+    numeros: dict[int, int] = {}
+    referencias: list[Referencia] = []
+
+    def citar(refs: list[Referencia]) -> list[int]:
+        for ref in refs:
+            if ref.id not in numeros:
+                referencias.append(ref)
+                numeros[ref.id] = len(referencias)
+        return [numeros[r.id] for r in refs]
+
+    secciones, pautas = [], []
+    for s in monografia.secciones:
+        if s.tipo == "posologia":
+            pautas = [{**datos_pauta(p), "citas": citar(p.referencias)} for p in monografia.pautas]
+        if s.origen != "editor":
+            continue
+        secciones.append({
+            "tipo": s.tipo, "titulo": TIPOS[s.tipo].titulo, "contenido": s.contenido, "idioma": s.idioma,
+            "fecha_verificacion": s.fecha_verificacion, "citas": citar(s.referencias),
+        })
+    ficha_actual = db.get(FichaTecnica, monografia.ficha_id) if monografia.ficha_id else None
+    return {
+        "principio_activo_id": principio.id,
+        "dci": principio.dci_es,
+        "dci_en": principio.dci_en,
+        "atc": principio.atc,
+        "grupo": principio.grupo,
+        "version": monografia.version,
+        "ultima_actualizacion": monografia.publicada_en,
+        "revisado_por": monografia.revisado_por,
+        "frescura": frescura(monografia, ficha_actual),
+        "nombres_comerciales": nombres_comerciales(db, principio.id),
+        "secciones": secciones,
+        "pautas": pautas,
+        "referencias": [
+            {"numero": numeros[r.id], "texto": formato_vancouver(r), "url": r.url, "doi": r.doi,
+             "pmid": r.pmid, "fecha_acceso": r.fecha_acceso}
+            for r in referencias
+        ],
+    }
