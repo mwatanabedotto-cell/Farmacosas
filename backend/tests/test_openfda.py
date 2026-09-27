@@ -10,6 +10,7 @@ from app.connectors.openfda import (
     es_excluido,
     estado_listado,
     fusionar_duplicados,
+    nombre_cumple_filtro,
     normalizar_producto,
     parsear_terminos,
     producto_coincide,
@@ -150,3 +151,18 @@ def test_fusiona_ndc_duplicados_en_varias_fichas():
     assert fusionados == fusionar_duplicados([b, otro, a])
     presentaciones = normalizar_producto(fusionados[0])["presentaciones"]
     assert [p["id_externo"] for p in presentaciones] == ["63323-531-90", "63323-531-98"]
+
+
+@pytest.mark.parametrize(
+    ("nombre", "filtro", "esperado"),
+    [
+        ("Humulin R", r"!\bN\b|\d+/\d+", True),
+        ("Humulin N", r"!\bN\b|\d+/\d+", False),
+        ("Novolin 70/30", r"!\bN\b|\d+/\d+", False),
+        ("Humulin N KwikPen", r"\bN\b", True),
+        ("Novolin R", r"\bN\b", False),
+        ("Cualquiera", None, True),
+    ],
+)
+def test_filtro_por_nombre(nombre, filtro, esperado):
+    assert nombre_cumple_filtro(nombre, filtro) is esperado

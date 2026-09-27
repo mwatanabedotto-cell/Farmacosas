@@ -25,6 +25,7 @@ def cargar_principios(db: Session, ruta_csv: Path) -> tuple[int, int]:
                 "atc": fila["atc"].strip(),
                 "grupo": fila["grupo"].strip(),
                 "terminos_openfda": (fila.get("openfda_ingredientes") or "").strip() or None,
+                "filtro_nombre_openfda": (fila.get("openfda_filtro_nombre") or "").strip() or None,
             }
             datos["texto_busqueda"] = texto_busqueda(datos["dci_es"], datos["dci_en"], datos["terminos_openfda"])
             principio = existentes.get(datos["dci_es"])

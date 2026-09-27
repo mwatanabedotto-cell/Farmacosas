@@ -55,8 +55,20 @@ Fuente: [NDC Directory](https://open.fda.gov/apis/drug/ndc/) (dominio público).
 - Si un producto deja de aparecer en una descarga **completa**, pasa a `no_listado` (no se borra).
   Si la descarga se trunca por el límite, no se marca ninguna baja.
 
-**Pendiente de verificación manual:** las insulinas humanas regular y NPH
-(`insulin human` / `insulin isophane`), porque la FDA puede listar ambas como `INSULIN HUMAN`.
+- Columna opcional `openfda_filtro_nombre`: expresión regular sobre el nombre comercial
+  (con `!` delante, excluye). Se usa cuando la FDA registra productos distintos con el mismo
+  ingrediente: insulina humana regular, NPH y las mezclas 70/30 figuran todas como
+  `INSULIN HUMAN`. Regular: `!\bN\b|\d+/\d+`; NPH: `\bN\b`. Las mezclas 70/30 (ATC A10AD01)
+  no pertenecen a ninguno de los dos.
+- Si un producto sigue en openFDA pero deja de cumplir los criterios (p. ej. por un filtro
+  nuevo), se **desvincula** del principio activo; no se marca como `no_listado`.
+
+### Resultado de la primera sincronización completa (2026-09-27)
+
+Los 100 principios activos se sincronizaron sin errores ni truncamientos (~22 000 productos).
+Sin productos en EE. UU., lo cual es correcto: metamizol (solo principio activo a granel)
+y butilbromuro de hioscina (no aprobados en EE. UU.). Sulfato ferroso tiene 1 producto porque
+en EE. UU. el hierro oral se comercializa mayoritariamente como suplemento dietético, fuera del NDC.
 
 ## Pruebas
 

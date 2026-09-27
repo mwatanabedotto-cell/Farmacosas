@@ -11,6 +11,7 @@ from app.connectors.openfda import (
     construir_busqueda,
     es_excluido,
     fusionar_duplicados,
+    nombre_cumple_filtro,
     normalizar_producto,
     parsear_terminos,
     producto_coincide,
@@ -73,6 +74,8 @@ def sincronizar_principio(db: Session, cliente: OpenFDAClient, principio: Princi
         if es_excluido(bruto) or not bruto.get("product_ndc") or not producto_coincide(ingredientes, componentes):
             continue
         datos = normalizar_producto(bruto)
+        if not nombre_cumple_filtro(datos["nombre_comercial"], principio.filtro_nombre_openfda):
+            continue
         producto, cambio = _guardar_producto(db, fuente, datos, momento)
         if principio not in producto.principios:
             producto.principios.append(principio)
@@ -89,7 +92,10 @@ def sincronizar_principio(db: Session, cliente: OpenFDAClient, principio: Princi
         sync.mensaje = f"Se procesaron {len(resultado.resultados)} de {resultado.total} resultados"
     else:
         # Solo con una descarga completa se puede afirmar que un producto dejó de estar listado.
-        sync.n_no_listados = _marcar_no_listados(db, fuente, principio, vistos, momento)
+        recibidos = {b.get("product_ndc") for b in resultado.resultados}
+        sync.n_no_listados, desvinculados = _conciliar_ausentes(db, fuente, principio, vistos, recibidos, momento)
+        if desvinculados:
+            sync.mensaje = f"{desvinculados} productos desvinculados por no cumplir los criterios"
         sync.estado = "ok"
 
     fuente.ultima_sincronizacion = momento
@@ -128,15 +134,29 @@ def _guardar_producto(db: Session, fuente: FuenteDatos, datos: dict, momento) ->
     return producto, cambio
 
 
-def _marcar_no_listados(db: Session, fuente: FuenteDatos, principio: PrincipioActivo, vistos: set[int], momento) -> int:
-    n = 0
-    for producto in principio.productos:
-        if producto.fuente_id == fuente.id and producto.id not in vistos and producto.estado != "no_listado":
+def _conciliar_ausentes(
+    db: Session, fuente: FuenteDatos, principio: PrincipioActivo, vistos: set[int], recibidos: set[str], momento
+) -> tuple[int, int]:
+    """Trata los productos vinculados que no se asociaron en esta descarga.
+
+    - Si openFDA los devolvió pero ya no cumplen los criterios (p. ej. un filtro nuevo),
+      se desvinculan del principio activo: siguen listados, pero no le corresponden.
+    - Si openFDA ya no los devuelve, se marcan como "no_listado" (no se borran).
+    Devuelve (no_listados, desvinculados).
+    """
+    no_listados = desvinculados = 0
+    for producto in list(principio.productos):
+        if producto.fuente_id != fuente.id or producto.id in vistos:
+            continue
+        if producto.id_externo in recibidos:
+            principio.productos.remove(producto)
+            desvinculados += 1
+        elif producto.estado != "no_listado":
             producto.estado = "no_listado"
             producto.fecha_actualizacion = momento
             producto.fecha_extraccion = momento
-            n += 1
-    return n
+            no_listados += 1
+    return no_listados, desvinculados
 
 
 def sincronizar(db: Session, cliente: OpenFDAClient, principio_ids: list[int] | None = None) -> list[Sincronizacion]:

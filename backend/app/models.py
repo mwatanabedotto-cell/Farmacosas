@@ -55,6 +55,10 @@ class PrincipioActivo(Base):
     grupo: Mapped[str] = mapped_column(String(100), index=True)
     # Componentes separados por "+", alternativas por "|" (p. ej. "amoxicillin+clavulanate|clavulanic acid").
     terminos_openfda: Mapped[str | None] = mapped_column(Text)
+    # Expresión regular opcional sobre el nombre comercial; con "!" delante, excluye.
+    # Necesaria cuando la FDA usa el mismo ingrediente para productos distintos
+    # (p. ej. insulina humana regular y NPH figuran ambas como "INSULIN HUMAN").
+    filtro_nombre_openfda: Mapped[str | None] = mapped_column(String(200))
     # DCI (es/en) y términos de openFDA normalizados, para búsqueda.
     texto_busqueda: Mapped[str] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(FechaUTC(), default=ahora)

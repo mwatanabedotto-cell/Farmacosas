@@ -85,3 +85,30 @@ def test_combinacion(db_sembrada):
 def test_error_de_openfda_queda_registrado(db_sembrada):
     sync = sincronizar_principio(db_sembrada, ClienteFalso(error=OpenFDAError("caída")), principio(db_sembrada))
     assert sync.estado == "error" and sync.mensaje == "caída" and sync.finalizada_en is not None
+
+
+def test_insulinas_humanas_se_separan_por_nombre(db_sembrada):
+    humulin_r = producto_ndc("0002-8215", [("INSULIN HUMAN", "100 [iU]/mL")], brand_name="Humulin R")
+    humulin_n = producto_ndc("0002-8315", [("INSULIN HUMAN", "100 [iU]/mL")], brand_name="Humulin N")
+    mezcla = producto_ndc("0002-8715", [("INSULIN HUMAN", "100 [iU]/mL")], brand_name="Humulin 70/30")
+    todos = [humulin_r, humulin_n, mezcla]
+    regular, nph = principio(db_sembrada, "insulina humana regular"), principio(db_sembrada, "insulina humana NPH")
+    sincronizar_principio(db_sembrada, ClienteFalso(todos), regular)
+    sincronizar_principio(db_sembrada, ClienteFalso(todos), nph)
+    assert [x.nombre_comercial for x in regular.productos] == ["Humulin R"]
+    assert [x.nombre_comercial for x in nph.productos] == ["Humulin N"]
+
+
+def test_producto_que_deja_de_cumplir_criterios_se_desvincula(db_sembrada):
+    regular = principio(db_sembrada, "insulina humana regular")
+    humulin_n = producto_ndc("0002-8315", [("INSULIN HUMAN", "100 [iU]/mL")], brand_name="Humulin N")
+    regular.filtro_nombre_openfda = None
+    sincronizar_principio(db_sembrada, ClienteFalso([humulin_n]), regular)
+    assert len(regular.productos) == 1
+
+    regular.filtro_nombre_openfda = r"!\bN\b"
+    sync = sincronizar_principio(db_sembrada, ClienteFalso([humulin_n]), regular)
+    assert regular.productos == [] and sync.n_no_listados == 0
+    assert "1 productos desvinculados" in sync.mensaje
+    producto = db_sembrada.scalar(select(ProductoComercial).where(ProductoComercial.id_externo == "0002-8315"))
+    assert producto.estado == "vigente"

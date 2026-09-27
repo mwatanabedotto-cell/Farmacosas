@@ -3,6 +3,7 @@
 Documentación: https://open.fda.gov/apis/drug/ndc/
 """
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -129,6 +130,15 @@ def producto_coincide(ingredientes: list[str], componentes: list[list[str]]) -> 
             return False
         cubiertos.update(indices)
     return len(cubiertos) == len(componentes)
+
+
+def nombre_cumple_filtro(nombre: str, filtro: str | None) -> bool:
+    """Aplica el filtro por nombre comercial: 'regex' debe coincidir; '!regex' no debe coincidir."""
+    if not filtro:
+        return True
+    excluir = filtro.startswith("!")
+    coincide = re.search(filtro[1:] if excluir else filtro, nombre, re.IGNORECASE) is not None
+    return coincide != excluir
 
 
 def es_excluido(producto: dict) -> bool:

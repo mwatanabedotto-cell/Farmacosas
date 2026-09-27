@@ -20,6 +20,8 @@ def test_csv_semilla_es_valido():
         for codigo in fila["atc"].split(" / "):
             assert ATC.match(codigo), fila
         assert parsear_terminos(fila["openfda_ingredientes"]), fila
+        if fila["openfda_filtro_nombre"]:
+            re.compile(fila["openfda_filtro_nombre"].removeprefix("!"))
 
 
 def test_cargar_principios_es_idempotente(db):
