@@ -240,8 +240,8 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 backend/
   app/
     api/          # routers FastAPI (búsqueda, monografías, disponibilidad, editorial)
-    models/       # SQLAlchemy
-    schemas/      # Pydantic
+    models.py     # SQLAlchemy (se dividirá en paquete al crecer)
+    schemas.py    # Pydantic
     services/     # lógica de negocio, versionado, auditoría
     connectors/   # openfda.py, dailymed.py, rxnorm.py, aemps_cima.py, invima_cum.py,
                   # anmat.py, isp.py, digemid.py, cofepris.py
@@ -336,7 +336,7 @@ docs/
 ## 13. Próximos pasos
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
-2. Crear el esqueleto del backend FastAPI (modelos, migraciones, autenticación, endpoint de búsqueda) y cargar la lista semilla.
-3. Implementar los conectores con API pública: openFDA/DailyMed/RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
+2. ~~Crear el esqueleto del backend FastAPI (modelos, migraciones, búsqueda) y cargar la lista semilla.~~ Hecho — ver [`backend/README.md`](../backend/README.md). Pendiente: usuarios con roles y MFA.
+3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~ hecho; DailyMed/RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.
