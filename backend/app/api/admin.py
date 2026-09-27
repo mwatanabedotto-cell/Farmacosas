@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
 from app.connectors.cofepris import CofeprisClient
+from app.connectors.pami import PamiClient
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import Settings, get_settings
@@ -23,7 +24,7 @@ from app.schemas import (
     SeccionBorrador,
     SincronizacionSalida,
 )
-from app.services import cofepris, fichas, fichas_cima, listas_esenciales, monografias, sincronizacion, sync_openfda
+from app.services import cofepris, pami, fichas, fichas_cima, listas_esenciales, monografias, sincronizacion, sync_openfda
 
 router = APIRouter(prefix="/admin", tags=["administración"], dependencies=[Depends(requerir_admin)])
 
@@ -100,6 +101,27 @@ def sincronizar_cofepris(
     """Sincroniza registros sanitarios de México (listados de COFEPRIS en gob.mx)."""
     tareas.add_task(_ejecutar_cofepris, fabrica, cliente, peticion.principio_ids)
     return {"mensaje": "Sincronización con COFEPRIS iniciada", "principio_ids": peticion.principio_ids}
+
+
+def get_pami_client(settings: Settings = Depends(get_settings)) -> PamiClient:
+    return PamiClient(pausa_segundos=settings.pami_pausa_segundos)
+
+
+def _ejecutar_pami(fabrica: sessionmaker[Session], cliente: PamiClient, principio_ids: list[int] | None) -> None:
+    with fabrica() as db:
+        pami.sincronizar(db, cliente, principio_ids)
+
+
+@router.post("/sincronizaciones/pami", status_code=status.HTTP_202_ACCEPTED)
+def sincronizar_pami(
+    peticion: PeticionSincronizacion,
+    tareas: BackgroundTasks,
+    fabrica: sessionmaker[Session] = Depends(get_session_factory),
+    cliente: PamiClient = Depends(get_pami_client),
+) -> dict:
+    """Sincroniza medicamentos de Argentina (listado de medicamentos cubiertos por PAMI)."""
+    tareas.add_task(_ejecutar_pami, fabrica, cliente, peticion.principio_ids)
+    return {"mensaje": "Sincronización con PAMI iniciada", "principio_ids": peticion.principio_ids}
 
 
 def _ejecutar_sync(fabrica: sessionmaker[Session], cliente: OpenFDAClient, principio_ids: list[int] | None) -> None:

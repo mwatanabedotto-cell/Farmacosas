@@ -16,13 +16,13 @@ import logging
 import re
 from collections.abc import Callable
 from datetime import date
-from itertools import permutations
 from urllib.parse import urlparse
 
 import httpx
 import pdfplumber
 
 from app.connectors.base import ClienteHTTP, ErrorConector, ResultadoProductos
+from app.connectors.nombres import componentes, mejor_principio, puntuacion, variantes  # noqa: F401
 from app.texto import normalizar
 
 log = logging.getLogger(__name__)
@@ -49,12 +49,6 @@ FORMAS_LOCALES = re.compile(
     r"espuma|t[oó]pic|d[eé]rmic|cut[aá]ne|colutorio|enjuague|bucal|dent[ai]",
     re.I,
 )
-SAL_INICIAL = re.compile(
-    r"^(clorhidrato|bromhidrato|sulfato|fosfato|maleato|besilato|succinato|tartrato|citrato|acetato|bromuro|"
-    r"mesilato|fumarato|valerato|propionato|dipropionato|fosfato sodico|succinato sodico)\s+de\s+"
-)
-
-
 class CofeprisError(ErrorConector):
     pass
 
@@ -134,44 +128,6 @@ def filas_de_tablas(tablas) -> list[dict]:
                 continue
             filas.append({k: (celdas[i] if i is not None and i < len(celdas) else "") for k, i in cols.items()})
     return filas
-
-
-def componentes(texto: str) -> list[str]:
-    return [c.strip() for c in re.split(r"\s*[/+]\s*", normalizar(texto)) if c.strip()]
-
-
-def _empieza(componente: str, termino: str) -> bool:
-    for c in (componente, SAL_INICIAL.sub("", componente)):
-        if c == termino or (c.startswith(termino) and c[len(termino)] in " ,("):
-            return True
-    return False
-
-
-def puntuacion(generica: str, variante: list[str]) -> int:
-    """Longitud de la coincidencia si la denominación genérica tiene exactamente esos componentes; si no, 0."""
-    comps = componentes(generica)
-    if len(comps) != len(variante) or len(comps) > 4:
-        return 0
-    for orden in permutations(variante):
-        if all(_empieza(c, t) for c, t in zip(comps, orden)):
-            return sum(len(t) for t in variante)
-    return 0
-
-
-def variantes(texto_busqueda: str) -> list[list[str]]:
-    """Nombres del principio activo (DCI, sinónimos...) como listas de componentes."""
-    return [componentes(n) for n in (texto_busqueda or "").split("|") if n.strip()]
-
-
-def mejor_principio(generica: str, indice: dict[int, list[list[str]]]) -> int | None:
-    """El principio activo cuyo nombre coincide de forma más específica (p. ej. NPH frente a regular)."""
-    mejor, puntos = None, 0
-    for principio_id, vs in indice.items():
-        for v in vs:
-            p = puntuacion(generica, v)
-            if p > puntos:
-                mejor, puntos = principio_id, p
-    return mejor
 
 
 def normalizar_registro(fila: dict, url: str, revocados: set[str], cancelados: set[str], hoy: date | None = None) -> dict:
@@ -255,9 +211,10 @@ class ConectorCofepris:
         "licencia": "Documentos públicos oficiales del Gobierno de México",
     }
 
-    def __init__(self, cliente: CofeprisClient, indice: dict[int, list[list[str]]]):
+    def __init__(self, cliente: CofeprisClient, indice: dict[int, list[list[str]]], filtros: dict[int, str | None] | None = None):
         self.cliente = cliente
         self.indice = indice
+        self.filtros = filtros or {}
         self._datos: tuple[list[dict], str] | None = None
 
     def _cargar(self) -> tuple[list[dict], str]:
@@ -271,7 +228,7 @@ class ConectorCofepris:
             for anio, url in fuentes["expedidos"]:
                 for fila in self.cliente.pdf(url):
                     datos = normalizar_registro(fila, url, revocados, cancelados)
-                    datos["_principio"] = mejor_principio(fila["generica"], self.indice)
+                    datos["_principio"] = mejor_principio(fila["generica"], self.indice, datos["nombre_comercial"], self.filtros)
                     datos["_local"] = bool(FORMAS_LOCALES.search(fila.get("forma") or ""))
                     registros.setdefault(datos["id_externo"], datos)
             anios = [a for a, _ in fuentes["expedidos"]]

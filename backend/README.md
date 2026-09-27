@@ -18,6 +18,7 @@ python -m app.cli importar-fichas-cima --dci enoxaparina  # ficha técnica espa�
 python -m app.cli sincronizar-invima --dci enoxaparina    # medicamentos de Colombia (CUM de INVIMA)
 python -m app.cli sincronizar-liname                      # LINAME de Bolivia (AGEMED)
 python -m app.cli sincronizar-cofepris                    # registros sanitarios de México (listados COFEPRIS)
+python -m app.cli sincronizar-pami                        # medicamentos de Argentina (listado de PAMI)
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -57,6 +58,7 @@ Administración (cabecera `X-Admin-Key`):
 | POST | `/api/v1/admin/sincronizaciones/invima` | Sincroniza medicamentos de Colombia (CUM) |
 | POST | `/api/v1/admin/sincronizaciones/liname` | Descarga la LINAME de Bolivia |
 | POST | `/api/v1/admin/sincronizaciones/cofepris` | Sincroniza registros sanitarios de México |
+| POST | `/api/v1/admin/sincronizaciones/pami` | Sincroniza medicamentos de Argentina (PAMI) |
 | GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
 | GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
 | PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
@@ -163,6 +165,26 @@ registros de medicamentos alopáticos **expedidos** cada año desde 2015 (format
 - **Limitación de cobertura:** solo registros expedidos desde 2015; los medicamentos registrados antes y
   renovados (muchos originales) no aparecen. Para completarlos: carga asistida.
 - Los PDF se descargan una vez por sincronización (unos 15 archivos).
+
+## Conector PAMI (Argentina)
+
+ANMAT no ofrece una fuente abierta y actualizada: el Vademécum Nacional de Medicamentos en datos.gob.ar es de
+2018 y la web del VNM no responde por HTTPS desde el entorno de desarrollo. Se usa el **listado oficial de
+medicamentos que cubre PAMI** (INSSJP), publicado cada semana en datos.gob.ar
+([medicamentos-para-entidades](https://datos.gob.ar/dataset/medicamentos-para-entidades)).
+
+- Por presentación: código **AlfaBeta**, principio activo, marca, presentación, laboratorio y **cobertura
+  PAMI**. Se agrupan en productos por marca + laboratorio + principio activo. Los precios se ignoran a
+  propósito (cambian cada semana y no son objeto del vademécum).
+- Se comprueba que el conjunto lo publique PAMI y que el archivo venga de `datos.pami.org.ar` (por HTTPS).
+- Sin ATC: asignación por nombre, entendiendo la **notación invertida de AlfaBeta** («acetilsalicílico,ác.»,
+  «potasio,cloruro», «sodio,divalproato») y los nombres argentinos (ciprofloxacina, amlodipina, dipirona...).
+  Se excluyen presentaciones de uso local («sol.oft.», «ung.», cremas...).
+- **Desempate por marca:** si una denominación genérica encaja por igual con varios principios activos
+  («insulina humana»), decide el filtro de nombre comercial (`openfda_filtro_nombre`): Insulatard o
+  Densulin N → NPH; Densulin R → regular. Se aplica también en México.
+- **Alcance:** es lo que cubre PAMI, no el registro completo de ANMAT: faltan sobre todo fármacos de uso
+  hospitalario (propofol, rocuronio, noradrenalina...) y no hay número de certificado ANMAT.
 
 ## Bolivia (AGEMED): Lista Nacional de Medicamentos Esenciales
 

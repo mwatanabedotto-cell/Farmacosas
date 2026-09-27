@@ -8,6 +8,7 @@
     python -m app.cli sincronizar-invima [--dci enoxaparina ...]
     python -m app.cli sincronizar-liname
     python -m app.cli sincronizar-cofepris [--dci enoxaparina ...]
+    python -m app.cli sincronizar-pami [--dci enoxaparina ...]
 """
 
 import argparse
@@ -20,12 +21,13 @@ from sqlalchemy import select
 from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
 from app.connectors.cofepris import CofeprisClient
+from app.connectors.pami import PamiClient
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import PrincipioActivo
-from app.services import cofepris, fichas, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
+from app.services import cofepris, fichas, pami, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
 from app.services.semilla import cargar_principios
 
 
@@ -47,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("sincronizar-liname", help="Descarga la LINAME de Bolivia (AGEMED)")
     p_mx = sub.add_parser("sincronizar-cofepris", help="Registros sanitarios de México (listados de COFEPRIS)")
     p_mx.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
+    p_ar = sub.add_parser("sincronizar-pami", help="Medicamentos de Argentina (listado de PAMI)")
+    p_ar.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -90,6 +94,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if errores else 0
         if args.comando == "sincronizar-cima":
             ejecuciones = sincronizacion.sincronizar(db, ConectorCima(cima), ids)
+        elif args.comando == "sincronizar-pami":
+            ejecuciones = pami.sincronizar(db, PamiClient(pausa_segundos=settings.pami_pausa_segundos), ids)
         elif args.comando == "sincronizar-cofepris":
             ejecuciones = cofepris.sincronizar(db, CofeprisClient(pausa_segundos=settings.cofepris_pausa_segundos), ids)
         elif args.comando == "sincronizar-invima":
