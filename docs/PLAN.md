@@ -6,6 +6,18 @@
 
 ---
 
+## 0. Decisiones tomadas (2026-09-27)
+
+| Tema | Decisión |
+|---|---|
+| **Países prioritarios** | 🇲🇽 México · 🇦🇷 Argentina · 🇨🇴 Colombia · 🇪🇸 España · 🇵🇪 Perú · 🇨🇱 Chile |
+| **Países secundarios** (fases posteriores) | Brasil, Portugal, Unión Europea, EE. UU. — FDA/DailyMed y EMA se usan desde el inicio **solo como fuente de contenido clínico**, no de disponibilidad. |
+| **Contenido inicial** | 100 principios activos de uso frecuente → [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (propuesta a validar). |
+| **Backend** | **Python + FastAPI**. |
+| **Equipo editorial** | Inicialmente **una sola persona** (propietario/administrador). El sistema de roles permite invitar colaboradores después. |
+
+---
+
 ## 1. Objetivo y alcance
 
 **Problema.** El médico necesita, en segundos y en el punto de atención, datos
@@ -40,7 +52,7 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 |---|---|
 | **Fuente primaria siempre** | Cada dato proviene de una ficha técnica/prospecto oficial, guía clínica o artículo indexado. Nada sin referencia. |
 | **Trazabilidad por campo** | Cada sección guarda `fuente_id`, `fecha_fuente`, `fecha_verificación` y `revisor`. |
-| **Revisión humana** | Flujo editorial: *borrador → revisión farmacéutica → revisión médica → publicado*. Ningún contenido importado automáticamente se publica sin aprobación. |
+| **Revisión humana** | Ningún contenido importado automáticamente se publica sin aprobación humana. **Fase inicial (un solo editor):** *borrador → autorrevisión con checklist → publicado*, y la monografía muestra "Revisado por 1 revisor". **Con colaboradores:** se activa la doble revisión *borrador → revisión farmacéutica → revisión médica → publicado*, configurable por monografía. |
 | **Versionado** | Todas las monografías son versionadas (historial consultable, diff entre versiones). |
 | **Frescura visible** | Aviso visual si una sección no se verifica hace > 12 meses o si la fuente oficial cambió después de la última revisión. |
 | **Alertas de seguridad** | Integración de alertas de farmacovigilancia (FDA, EMA, AEMPS, ANVISA, etc.) destacadas arriba de la monografía. |
@@ -64,18 +76,30 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 
 ### 3.3 Registro y disponibilidad por región (nombres comerciales)
 
+**Países prioritarios** (en orden sugerido de implementación, según facilidad de acceso a los datos):
+
+| # | País | Agencia | Fuente | Acceso | Genérico / intercambiable |
+|---|---|---|---|---|---|
+| 1 | España | AEMPS | CIMA | API REST pública | EFG |
+| 2 | Colombia | INVIMA | Código Único de Medicamentos (CUM) en datos.gov.co | API de datos abiertos | — |
+| 3 | Argentina | ANMAT | Vademécum Nacional de Medicamentos | Consulta web / descargas | — |
+| 4 | Chile | ISP | Registro sanitario de productos farmacéuticos | Consulta web | Bioequivalente |
+| 5 | Perú | DIGEMID | Registro sanitario / Observatorio de productos farmacéuticos | Consulta web | — |
+| 6 | México | COFEPRIS | Registros sanitarios; Compendio Nacional de Insumos (CSG) | Consulta web / PDF | GI (genérico intercambiable) |
+
+**Secundarios (fases posteriores):**
+
 | Región | Agencia | Fuente |
 |---|---|---|
 | Brasil | ANVISA | Consulta de registros / Bulário Eletrônico |
-| México | COFEPRIS | Registros sanitarios |
-| Argentina | ANMAT | Vademécum Nacional de Medicamentos |
-| Colombia | INVIMA | Datos abiertos / consulta de registros |
-| Chile | ISP | Registro de productos farmacéuticos |
-| Perú | DIGEMID | Observatorio / registro sanitario |
-| España | AEMPS | CIMA |
 | Unión Europea | EMA | Medicamentos autorizados centralizadamente |
 | EE. UU. | FDA | Drugs@FDA, Orange Book, NDC Directory |
 | Portugal | INFARMED | Infomed |
+
+> Si una agencia no ofrece API ni datos descargables, la disponibilidad de ese
+> país se carga **de forma asistida**: el editor registra el producto con el
+> enlace y la fecha de la consulta oficial, y un job periódico avisa cuándo toca
+> volver a verificarlo.
 
 > Cada conector (ETL) registra la **fecha y hora de extracción**; si la agencia
 > no ofrece API se usan descargas oficiales de datos abiertos. Se revisarán los
@@ -119,11 +143,11 @@ Vista de tabla filtrable por país (el país del usuario viene preseleccionado):
 
 | País | Nombre comercial | Laboratorio | Presentación | Registro | Estado | Verificado |
 |---|---|---|---|---|---|---|
-| 🇧🇷 BR | Ejemplo® | Lab X | comp. 500 mg | 1.2345.6789 | Vigente | 2026-09-01 |
-| 🇲🇽 MX | Ejemplo® | Lab Y | sol. iny. 1 g | 123M2020 SSA | Vigente | 2026-08-20 |
+| 🇲🇽 MX | Ejemplo® | Lab X | comp. 500 mg | 123M2020 SSA | Vigente | 2026-09-01 |
+| 🇨🇴 CO | Ejemplo® | Lab Y | sol. iny. 1 g | INVIMA 2020M-000000 | Vigente | 2026-08-20 |
 
-- Indica si existe **genérico/intercambiable** (p. ej. *genérico* ANVISA,
-  *GI* COFEPRIS, *EFG* AEMPS).
+- Indica si existe **genérico/intercambiable** (p. ej. *GI* COFEPRIS,
+  *EFG* AEMPS, *bioequivalente* ISP).
 - Estados: vigente, suspendido, cancelado, desabastecimiento.
 - Búsqueda inversa: al escribir un nombre comercial de otro país, la app muestra
   el principio activo y **sus equivalentes en el país del usuario**.
@@ -170,14 +194,34 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 | Capa | Tecnología | Motivo |
 |---|---|---|
 | Frontend | Next.js (React) + TypeScript, **PWA** | Web y móvil con un solo código; modo offline para favoritos. |
-| Backend | NestJS (TypeScript) o FastAPI (Python) | FastAPI facilita los ETL y el procesamiento de fichas. |
+| Backend | **FastAPI (Python 3.12+)** + Pydantic v2 | Decidido. Documentación OpenAPI automática; el mismo lenguaje para API y ETL. |
+| ORM / migraciones | SQLAlchemy 2 + Alembic | Estándar en el ecosistema FastAPI. |
+| ETL | Conectores en Python (`httpx`, `pandas`); scraping con `playwright` solo si no hay alternativa | Un módulo por agencia con interfaz común. |
+| Tareas programadas | APScheduler al inicio → Celery/Arq + Redis cuando crezca | Simple para un solo desarrollador. |
 | Base de datos | PostgreSQL | Relacional, versionado con tablas históricas, `pg_trgm`. |
 | Búsqueda | Meilisearch u OpenSearch | Tolerancia a errores, sinónimos, multilingüe (es/pt/en). |
-| ETL | Jobs programados (cron / colas) | Un conector por agencia, con detección de cambios (hash del documento). |
 | Infra | Contenedores + nube con región en LATAM | Latencia y cumplimiento de leyes de datos. |
 | Observabilidad | Logs estructurados, métricas, alertas | Detectar fallos de sincronización de fuentes. |
 
-**Idiomas:** interfaz en español, portugués e inglés (i18n desde el inicio).
+**Idiomas:** interfaz en español (prioritario); portugués e inglés preparados con i18n desde el inicio.
+
+**Estructura inicial del repositorio (propuesta):**
+
+```
+backend/
+  app/
+    api/          # routers FastAPI (búsqueda, monografías, disponibilidad, editorial)
+    models/       # SQLAlchemy
+    schemas/      # Pydantic
+    services/     # lógica de negocio, versionado, auditoría
+    connectors/   # aemps_cima.py, invima_cum.py, anmat.py, isp.py, digemid.py, cofepris.py
+    core/         # config, seguridad, auth
+  alembic/
+  tests/
+frontend/         # Next.js PWA
+data/             # listas semilla (principios_activos_iniciales.csv)
+docs/
+```
 
 ---
 
@@ -187,19 +231,23 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 - **Verificación profesional** (opcional/por niveles): CRM (Brasil), cédula
   profesional (México), matrícula (Argentina), colegiado (España), etc.
 - **Autorización por roles:** lector, editor, revisor farmacéutico, revisor
-  médico, administrador.
+  médico, administrador. Al inicio existe un único usuario **administrador**
+  (el propietario), que puede invitar colaboradores por e-mail y asignarles
+  rol; los permisos se definen por rol, no por persona, para escalar sin
+  cambiar código.
 - **Integridad del contenido:** solo roles revisores publican; toda edición
   queda en el registro de auditoría inmutable; firma/hash por versión publicada.
 - **Protección técnica:** TLS 1.2+, cifrado en reposo, OWASP ASVS, cabeceras de
   seguridad (CSP, HSTS), *rate limiting*, escaneo de dependencias, backups
   cifrados y probados.
 - **Privacidad:** no se almacenan datos de pacientes; datos mínimos del médico;
-  cumplimiento de **LGPD** (Brasil), **GDPR** (UE) y leyes locales (p. ej.
-  Ley 25.326 AR, LFPDPPP MX).
+  cumplimiento de **RGPD/LOPDGDD** (España), **LFPDPPP** (México),
+  **Ley 25.326** (Argentina), **Ley 1581 de 2012** (Colombia),
+  **Ley 29733** (Perú) y **Ley 19.628 / Ley 21.719** (Chile).
 - **Regulatorio:** como fuente de referencia de información de medicamentos no
   debería clasificarse como dispositivo médico; si en el futuro se añaden
   calculadoras de dosis o recomendaciones individualizadas, evaluar la
-  clasificación como *Software as a Medical Device* (ANVISA RDC 657/2022, MDR UE).
+  clasificación como *Software as a Medical Device* (MDR en la UE/España y la normativa de cada agencia latinoamericana).
 
 ---
 
@@ -221,10 +269,10 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 | Fase | Duración estimada | Entregables |
 |---|---|---|
 | **0. Fundaciones** | 2–3 semanas | Repositorio, CI, modelo de datos, autenticación, i18n, diseño UI. |
-| **1. MVP** | 6–8 semanas | Búsqueda; 100 principios activos más usados; monografía con fechas y referencias; disponibilidad BR, MX, AR, ES, EE. UU.; panel editorial básico. |
-| **2. Ampliación regional** | 4–6 semanas | Conectores CO, CL, PE, PT, UE; alertas de farmacovigilancia; historial de versiones visible. |
+| **1. MVP** | 8–10 semanas | API FastAPI; búsqueda; primeros 100 principios activos; monografía con fechas y referencias; conectores ES (CIMA) y CO (CUM); carga asistida de AR, CL, PE y MX; panel editorial para un editor. |
+| **2. Conectores y colaboradores** | 4–6 semanas | Conectores automáticos AR, CL, PE, MX donde sea posible; invitación de colaboradores y doble revisión; alertas de farmacovigilancia de las 6 agencias; historial de versiones visible. |
 | **3. Clínica avanzada** | 6–8 semanas | Verificador de interacciones entre varios fármacos; ajustes renales con calculadora de ClCr; sección perioperatoria completa. |
-| **4. Móvil nativo / API** | continuo | Apps iOS/Android, API para integraciones (HIS/HCE), analítica de uso. |
+| **4. Expansión** | continuo | Brasil, Portugal, UE, EE. UU.; apps iOS/Android; API para integraciones (HIS/HCE); analítica de uso. |
 
 ---
 
@@ -234,7 +282,8 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 - [ ] Referencias numeradas al final, con enlace funcional y fecha de acceso.
 - [ ] Búsqueda por DCI, nombre comercial y ATC con resultados en < 300 ms (p95).
 - [ ] Tabla de disponibilidad por país con registro sanitario y fecha de verificación.
-- [ ] Ningún contenido se publica sin aprobación de un revisor.
+- [ ] Ningún contenido se publica sin aprobación de un revisor (autorrevisión con checklist mientras haya un solo editor).
+- [ ] Disponibilidad cargada para los 6 países prioritarios en los 100 principios activos iniciales.
 - [ ] Auditoría completa de cambios y MFA para roles editoriales.
 - [ ] Aviso legal visible en cada monografía.
 
@@ -247,16 +296,16 @@ Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 | Fuentes sin API o que cambian de formato | Conectores aislados, pruebas de contrato, alertas cuando falla una sincronización. |
 | Información desactualizada | Detección de cambios en fichas oficiales + badge de frescura + SLA de revisión. |
 | Licencias/derechos de contenido | Usar fuentes públicas/abiertas; redactar monografías propias citando fuentes; revisión legal. |
-| Error clínico en el contenido | Doble revisión (farmacéutica + médica), reporte de errores por usuarios, versionado. |
+| Error clínico en el contenido | Checklist obligatorio de revisión, reporte de errores por usuarios, versionado; doble revisión en cuanto haya colaboradores. |
+| Un solo editor (cuello de botella) | Priorizar las secciones críticas (posología, ajustes, contraindicaciones, interacciones); automatizar la importación de fichas oficiales como borradores. |
 | Nombres comerciales ambiguos entre países | Mapeo siempre vía principio activo + país; mostrar país en cada resultado. |
 
 ---
 
 ## 13. Próximos pasos
 
-1. Validar el alcance del MVP (países y lista de los 100 principios activos iniciales).
-2. Elegir backend (NestJS vs. FastAPI) y proveedor de nube.
-3. Prototipar la pantalla de monografía y la tabla de disponibilidad.
-4. Implementar el primer conector (AEMPS CIMA u openFDA, que tienen API pública)
-   y el de ANVISA.
-5. Definir el equipo editorial (farmacéutico + médico revisor) y su flujo.
+1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
+2. Crear el esqueleto del backend FastAPI (modelos, migraciones, autenticación, endpoint de búsqueda) y cargar la lista semilla.
+3. Implementar los conectores AEMPS CIMA y INVIMA CUM (tienen API pública).
+4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
+5. Prototipar la pantalla de monografía y la tabla de disponibilidad.

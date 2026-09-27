@@ -1,0 +1,101 @@
+n,dci_es,dci_en,atc,grupo
+1,paracetamol,paracetamol,N02BE01,Analgesia y antiinflamatorios
+2,ibuprofeno,ibuprofen,M01AE01,Analgesia y antiinflamatorios
+3,diclofenaco,diclofenac,M01AB05,Analgesia y antiinflamatorios
+4,ketorolaco,ketorolac,M01AB15,Analgesia y antiinflamatorios
+5,metamizol,metamizole sodium,N02BB02,Analgesia y antiinflamatorios
+6,tramadol,tramadol,N02AX02,Analgesia y antiinflamatorios
+7,morfina,morphine,N02AA01,Analgesia y antiinflamatorios
+8,fentanilo,fentanyl,N02AB03,Analgesia y antiinflamatorios
+9,amoxicilina,amoxicillin,J01CA04,Antiinfecciosos
+10,amoxicilina + ácido clavulánico,amoxicillin and beta-lactamase inhibitor,J01CR02,Antiinfecciosos
+11,cefalexina,cefalexin,J01DB01,Antiinfecciosos
+12,cefazolina,cefazolin,J01DB04,Antiinfecciosos
+13,ceftriaxona,ceftriaxone,J01DD04,Antiinfecciosos
+14,azitromicina,azithromycin,J01FA10,Antiinfecciosos
+15,ciprofloxacino,ciprofloxacin,J01MA02,Antiinfecciosos
+16,levofloxacino,levofloxacin,J01MA12,Antiinfecciosos
+17,nitrofurantoína,nitrofurantoin,J01XE01,Antiinfecciosos
+18,sulfametoxazol + trimetoprima,sulfamethoxazole and trimethoprim,J01EE01,Antiinfecciosos
+19,clindamicina,clindamycin,J01FF01,Antiinfecciosos
+20,metronidazol,metronidazole,J01XD01 / P01AB01,Antiinfecciosos
+21,doxiciclina,doxycycline,J01AA02,Antiinfecciosos
+22,vancomicina,vancomycin,J01XA01,Antiinfecciosos
+23,piperacilina + tazobactam,piperacillin and beta-lactamase inhibitor,J01CR05,Antiinfecciosos
+24,meropenem,meropenem,J01DH02,Antiinfecciosos
+25,gentamicina,gentamicin,J01GB03,Antiinfecciosos
+26,fluconazol,fluconazole,J02AC01,Antiinfecciosos
+27,aciclovir,aciclovir,J05AB01,Antiinfecciosos
+28,ivermectina,ivermectin,P02CF01,Antiinfecciosos
+29,albendazol,albendazole,P02CA03,Antiinfecciosos
+30,ácido acetilsalicílico,acetylsalicylic acid,B01AC06,Cardiovascular y antitrombóticos
+31,enalapril,enalapril,C09AA02,Cardiovascular y antitrombóticos
+32,losartán,losartan,C09CA01,Cardiovascular y antitrombóticos
+33,amlodipino,amlodipine,C08CA01,Cardiovascular y antitrombóticos
+34,hidroclorotiazida,hydrochlorothiazide,C03AA03,Cardiovascular y antitrombóticos
+35,furosemida,furosemide,C03CA01,Cardiovascular y antitrombóticos
+36,espironolactona,spironolactone,C03DA01,Cardiovascular y antitrombóticos
+37,metoprolol,metoprolol,C07AB02,Cardiovascular y antitrombóticos
+38,carvedilol,carvedilol,C07AG02,Cardiovascular y antitrombóticos
+39,atorvastatina,atorvastatin,C10AA05,Cardiovascular y antitrombóticos
+40,rosuvastatina,rosuvastatin,C10AA07,Cardiovascular y antitrombóticos
+41,clopidogrel,clopidogrel,B01AC04,Cardiovascular y antitrombóticos
+42,warfarina,warfarin,B01AA03,Cardiovascular y antitrombóticos
+43,apixabán,apixaban,B01AF02,Cardiovascular y antitrombóticos
+44,rivaroxabán,rivaroxaban,B01AF01,Cardiovascular y antitrombóticos
+45,enoxaparina,enoxaparin,B01AB05,Cardiovascular y antitrombóticos
+46,heparina sódica,heparin,B01AB01,Cardiovascular y antitrombóticos
+47,digoxina,digoxin,C01AA05,Cardiovascular y antitrombóticos
+48,amiodarona,amiodarone,C01BD01,Cardiovascular y antitrombóticos
+49,nitroglicerina,glyceryl trinitrate,C01DA02,Cardiovascular y antitrombóticos
+50,metformina,metformin,A10BA02,Endocrino y metabolismo
+51,glibenclamida,glibenclamide,A10BB01,Endocrino y metabolismo
+52,insulina glargina,insulin glargine,A10AE04,Endocrino y metabolismo
+53,insulina humana regular,insulin (human) fast-acting,A10AB01,Endocrino y metabolismo
+54,insulina humana NPH,insulin (human) intermediate-acting,A10AC01,Endocrino y metabolismo
+55,empagliflozina,empagliflozin,A10BK03,Endocrino y metabolismo
+56,levotiroxina,levothyroxine sodium,H03AA01,Endocrino y metabolismo
+57,omeprazol,omeprazole,A02BC01,Digestivo
+58,pantoprazol,pantoprazole,A02BC02,Digestivo
+59,metoclopramida,metoclopramide,A03FA01,Digestivo
+60,ondansetrón,ondansetron,A04AA01,Digestivo
+61,butilbromuro de hioscina,butylscopolamine,A03BB01,Digestivo
+62,lactulosa,lactulose,A06AD11,Digestivo
+63,salbutamol,salbutamol,R03AC02,Respiratorio y alergia
+64,budesonida inhalada,budesonide,R03BA02,Respiratorio y alergia
+65,loratadina,loratadine,R06AX13,Respiratorio y alergia
+66,prednisona,prednisone,H02AB07,Corticoides sistémicos
+67,dexametasona,dexamethasone,H02AB02,Corticoides sistémicos
+68,hidrocortisona,hydrocortisone,H02AB09,Corticoides sistémicos
+69,sertralina,sertraline,N06AB06,Neurología y psiquiatría
+70,fluoxetina,fluoxetine,N06AB03,Neurología y psiquiatría
+71,escitalopram,escitalopram,N06AB10,Neurología y psiquiatría
+72,amitriptilina,amitriptyline,N06AA09,Neurología y psiquiatría
+73,clonazepam,clonazepam,N03AE01,Neurología y psiquiatría
+74,diazepam,diazepam,N05BA01,Neurología y psiquiatría
+75,midazolam,midazolam,N05CD08,Neurología y psiquiatría
+76,haloperidol,haloperidol,N05AD01,Neurología y psiquiatría
+77,quetiapina,quetiapine,N05AH04,Neurología y psiquiatría
+78,levetiracetam,levetiracetam,N03AX14,Neurología y psiquiatría
+79,fenitoína,phenytoin,N03AB02,Neurología y psiquiatría
+80,ácido valproico,valproic acid,N03AG01,Neurología y psiquiatría
+81,gabapentina,gabapentin,N03AX12,Neurología y psiquiatría
+82,pregabalina,pregabalin,N03AX16,Neurología y psiquiatría
+83,propofol,propofol,N01AX10,Anestesia y urgencias
+84,ketamina,ketamine,N01AX03,Anestesia y urgencias
+85,lidocaína,lidocaine,N01BB02,Anestesia y urgencias
+86,bupivacaína,bupivacaine,N01BB01,Anestesia y urgencias
+87,rocuronio,rocuronium bromide,M03AC09,Anestesia y urgencias
+88,succinilcolina,suxamethonium,M03AB01,Anestesia y urgencias
+89,sugammadex,sugammadex,V03AB35,Anestesia y urgencias
+90,naloxona,naloxone,V03AB15,Anestesia y urgencias
+91,adrenalina,epinephrine,C01CA24,Anestesia y urgencias
+92,noradrenalina,norepinephrine,C01CA03,Anestesia y urgencias
+93,atropina,atropine,A03BA01,Anestesia y urgencias
+94,ácido tranexámico,tranexamic acid,B02AA02,Anestesia y urgencias
+95,cloruro de potasio,potassium chloride,A12BA01,Electrolitos y otros
+96,sulfato de magnesio,magnesium sulfate,A12CC02,Electrolitos y otros
+97,oxitocina,oxytocin,H01BB02,Electrolitos y otros
+98,alopurinol,allopurinol,M04AA01,Electrolitos y otros
+99,sulfato ferroso,ferrous sulfate,B03AA07,Electrolitos y otros
+100,fitomenadiona (vitamina K1),phytomenadione,B02BA01,Electrolitos y otros
