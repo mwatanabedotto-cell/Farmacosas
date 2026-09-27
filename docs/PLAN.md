@@ -10,8 +10,9 @@
 
 | Tema | Decisión |
 |---|---|
-| **Países prioritarios** | 🇲🇽 México · 🇦🇷 Argentina · 🇨🇴 Colombia · 🇪🇸 España · 🇵🇪 Perú · 🇨🇱 Chile |
-| **Países secundarios** (fases posteriores) | Brasil, Portugal, Unión Europea, EE. UU. — FDA/DailyMed y EMA se usan desde el inicio **solo como fuente de contenido clínico**, no de disponibilidad. |
+| **Países prioritarios** | 🇺🇸 Estados Unidos · 🇲🇽 México · 🇦🇷 Argentina · 🇨🇴 Colombia · 🇪🇸 España · 🇵🇪 Perú · 🇨🇱 Chile |
+| **Estados Unidos** | Se incluye como país prioritario por su volumen de investigación y la apertura de sus datos: disponibilidad (FDA), fichas técnicas (DailyMed), farmacovigilancia (FAERS) y evidencia (PubMed, ClinicalTrials.gov). Ver §3.4. |
+| **Países secundarios** (fases posteriores) | Brasil, Portugal, Unión Europea — EMA se usa desde el inicio **solo como fuente de contenido clínico**, no de disponibilidad. |
 | **Contenido inicial** | 100 principios activos de uso frecuente → [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (propuesta a validar). |
 | **Backend** | **Python + FastAPI**. |
 | **Equipo editorial** | Inicialmente **una sola persona** (propietario/administrador). El sistema de roles permite invitar colaboradores después. |
@@ -55,7 +56,7 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 | **Revisión humana** | Ningún contenido importado automáticamente se publica sin aprobación humana. **Fase inicial (un solo editor):** *borrador → autorrevisión con checklist → publicado*, y la monografía muestra "Revisado por 1 revisor". **Con colaboradores:** se activa la doble revisión *borrador → revisión farmacéutica → revisión médica → publicado*, configurable por monografía. |
 | **Versionado** | Todas las monografías son versionadas (historial consultable, diff entre versiones). |
 | **Frescura visible** | Aviso visual si una sección no se verifica hace > 12 meses o si la fuente oficial cambió después de la última revisión. |
-| **Alertas de seguridad** | Integración de alertas de farmacovigilancia (FDA, EMA, AEMPS, ANVISA, etc.) destacadas arriba de la monografía. |
+| **Alertas de seguridad** | Integración de alertas de farmacovigilancia (FDA, AEMPS, COFEPRIS, ANMAT, INVIMA, ISP, DIGEMID; EMA más adelante) destacadas arriba de la monografía. |
 | **Descargo de responsabilidad** | Texto claro: la información apoya, no sustituye, el juicio clínico ni la ficha técnica local. |
 
 ---
@@ -80,6 +81,7 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 
 | # | País | Agencia | Fuente | Acceso | Genérico / intercambiable |
 |---|---|---|---|---|---|
+| 1 | Estados Unidos | FDA | openFDA (NDC Directory, Drugs@FDA), Orange Book, DailyMed; RxNorm para mapear nombres | API REST pública | Equivalencia terapéutica (códigos TE del Orange Book: AB, etc.) |
 | 1 | España | AEMPS | CIMA | API REST pública | EFG |
 | 2 | Colombia | INVIMA | Código Único de Medicamentos (CUM) en datos.gov.co | API de datos abiertos | — |
 | 3 | Argentina | ANMAT | Vademécum Nacional de Medicamentos | Consulta web / descargas | — |
@@ -93,7 +95,6 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 |---|---|---|
 | Brasil | ANVISA | Consulta de registros / Bulário Eletrônico |
 | Unión Europea | EMA | Medicamentos autorizados centralizadamente |
-| EE. UU. | FDA | Drugs@FDA, Orange Book, NDC Directory |
 | Portugal | INFARMED | Infomed |
 
 > Si una agencia no ofrece API ni datos descargables, la disponibilidad de ese
@@ -104,6 +105,30 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 > Cada conector (ETL) registra la **fecha y hora de extracción**; si la agencia
 > no ofrece API se usan descargas oficiales de datos abiertos. Se revisarán los
 > términos de uso/licencia de cada fuente antes de integrarla.
+
+### 3.4 Investigación y evidencia (foco en EE. UU.)
+
+Estados Unidos concentra una gran parte de los ensayos clínicos y de la
+literatura biomédica indexada, y publica casi todo por API pública:
+
+| Fuente | Qué aporta | Acceso |
+|---|---|---|
+| **PubMed / MEDLINE (NLM)** | Ensayos clínicos aleatorizados, metaanálisis y revisiones; PMID para las referencias | API E-utilities |
+| **ClinicalTrials.gov** | Ensayos en curso y completados por principio activo, con resultados publicados | API v2 |
+| **DailyMed / openFDA drug label** | Ficha técnica oficial (SPL): posología, *boxed warnings*, interacciones | API REST |
+| **openFDA FAERS** | Notificaciones de reacciones adversas posautorización | API REST |
+| **FDA Drug Safety Communications** | Alertas de seguridad oficiales | Web / RSS |
+| **RxNorm / RxClass (NLM)** | Normalización de nombres, clases terapéuticas, mapeo con ATC | API REST |
+
+**Cómo se usa en la app:**
+- **Sección "Evidencia reciente"** en cada monografía: metaanálisis y ensayos
+  aleatorizados relevantes (filtros de PubMed por tipo de publicación) y ensayos
+  activos en ClinicalTrials.gov. Un job semanal propone novedades, que **el
+  editor revisa antes de publicarlas**.
+- Las referencias de PubMed se completan automáticamente (autores, revista,
+  año, DOI, PMID) a partir del identificador.
+- Las diferencias de indicación o dosis entre la FDA y la agencia local se
+  marcan explícitamente (p. ej. "Aprobado por FDA; no aprobado en México").
 
 ---
 
@@ -126,10 +151,12 @@ Orden de secciones (pensado para uso clínico rápido):
 12. **Consideraciones perioperatorias** (suspensión/reinicio, anticoagulantes,
     antiagregantes, hipoglucemiantes — útil para cirugía).
 13. **Sobredosis y antídoto**.
-14. **Disponibilidad por región** (tabla, ver §5).
-15. **Referencias** — numeradas, estilo Vancouver, con enlace/DOI/PMID y
+14. **Evidencia reciente** — metaanálisis y ensayos clave (PubMed) y ensayos
+    en curso (ClinicalTrials.gov), con fecha de búsqueda (ver §3.4).
+15. **Disponibilidad por región** (tabla, ver §5).
+16. **Referencias** — numeradas, estilo Vancouver, con enlace/DOI/PMID y
     fecha de acceso.
-16. **Pie de página** — *Última actualización: AAAA-MM-DD · Versión N ·
+17. **Pie de página** — *Última actualización: AAAA-MM-DD · Versión N ·
     Revisado por: …*
 
 Cada sección muestra su propia fecha de verificación y las citas en línea `[1]`,
@@ -168,6 +195,8 @@ ProductoComercial (id, nombre_comercial, laboratorio, país, n_registro, estado,
   └─ Presentación (forma, concentración, vía, envase)
   └─ ProductoComponente (producto_id, principio_activo_id, dosis)  ← combinaciones
 AlertaSeguridad (id, agencia, país, fecha, título, url, principios_activos[])
+EvidenciaReciente (id, principio_activo_id, tipo[metaanálisis|ECA|ensayo_en_curso],
+                   pmid | nct_id, título, fecha, estado[propuesta|aprobada|descartada])
 FuenteDatos (id, nombre, agencia, país, url, licencia, última_sincronización)
 Auditoría (entidad, entidad_id, acción, usuario, fecha, diff)
 ```
@@ -214,7 +243,9 @@ backend/
     models/       # SQLAlchemy
     schemas/      # Pydantic
     services/     # lógica de negocio, versionado, auditoría
-    connectors/   # aemps_cima.py, invima_cum.py, anmat.py, isp.py, digemid.py, cofepris.py
+    connectors/   # openfda.py, dailymed.py, rxnorm.py, aemps_cima.py, invima_cum.py,
+                  # anmat.py, isp.py, digemid.py, cofepris.py
+    evidence/     # pubmed.py, clinicaltrials.py
     core/         # config, seguridad, auth
   alembic/
   tests/
@@ -269,10 +300,10 @@ docs/
 | Fase | Duración estimada | Entregables |
 |---|---|---|
 | **0. Fundaciones** | 2–3 semanas | Repositorio, CI, modelo de datos, autenticación, i18n, diseño UI. |
-| **1. MVP** | 8–10 semanas | API FastAPI; búsqueda; primeros 100 principios activos; monografía con fechas y referencias; conectores ES (CIMA) y CO (CUM); carga asistida de AR, CL, PE y MX; panel editorial para un editor. |
-| **2. Conectores y colaboradores** | 4–6 semanas | Conectores automáticos AR, CL, PE, MX donde sea posible; invitación de colaboradores y doble revisión; alertas de farmacovigilancia de las 6 agencias; historial de versiones visible. |
+| **1. MVP** | 8–10 semanas | API FastAPI; búsqueda; primeros 100 principios activos; monografía con fechas y referencias; conectores EE. UU. (openFDA/DailyMed/RxNorm), ES (CIMA) y CO (CUM); referencias automáticas desde PubMed; carga asistida de AR, CL, PE y MX; panel editorial para un editor. |
+| **2. Conectores y colaboradores** | 4–6 semanas | Conectores automáticos AR, CL, PE, MX donde sea posible; invitación de colaboradores y doble revisión; sección "Evidencia reciente" (PubMed + ClinicalTrials.gov); alertas de farmacovigilancia de las 7 agencias; historial de versiones visible. |
 | **3. Clínica avanzada** | 6–8 semanas | Verificador de interacciones entre varios fármacos; ajustes renales con calculadora de ClCr; sección perioperatoria completa. |
-| **4. Expansión** | continuo | Brasil, Portugal, UE, EE. UU.; apps iOS/Android; API para integraciones (HIS/HCE); analítica de uso. |
+| **4. Expansión** | continuo | Brasil, Portugal, UE; apps iOS/Android; API para integraciones (HIS/HCE); analítica de uso. |
 
 ---
 
@@ -283,7 +314,7 @@ docs/
 - [ ] Búsqueda por DCI, nombre comercial y ATC con resultados en < 300 ms (p95).
 - [ ] Tabla de disponibilidad por país con registro sanitario y fecha de verificación.
 - [ ] Ningún contenido se publica sin aprobación de un revisor (autorrevisión con checklist mientras haya un solo editor).
-- [ ] Disponibilidad cargada para los 6 países prioritarios en los 100 principios activos iniciales.
+- [ ] Disponibilidad cargada para los 7 países prioritarios en los 100 principios activos iniciales.
 - [ ] Auditoría completa de cambios y MFA para roles editoriales.
 - [ ] Aviso legal visible en cada monografía.
 
@@ -306,6 +337,6 @@ docs/
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
 2. Crear el esqueleto del backend FastAPI (modelos, migraciones, autenticación, endpoint de búsqueda) y cargar la lista semilla.
-3. Implementar los conectores AEMPS CIMA y INVIMA CUM (tienen API pública).
+3. Implementar los conectores con API pública: openFDA/DailyMed/RxNorm (EE. UU.), AEMPS CIMA e INVIMA CUM, más el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.
