@@ -3,6 +3,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.connectors.cima import CimaClient, ConectorCima
+from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import Settings, get_settings
 from app.core.security import requerir_admin
@@ -35,6 +36,27 @@ def get_openfda_client(settings: Settings = Depends(get_settings)) -> OpenFDACli
 
 def get_cima_client(settings: Settings = Depends(get_settings)) -> CimaClient:
     return CimaClient(pausa_segundos=settings.cima_pausa_segundos)
+
+
+def get_invima_client(settings: Settings = Depends(get_settings)) -> InvimaClient:
+    return InvimaClient(app_token=settings.datosgov_app_token, pausa_segundos=settings.invima_pausa_segundos)
+
+
+def _ejecutar_invima(fabrica: sessionmaker[Session], cliente: InvimaClient, principio_ids: list[int] | None) -> None:
+    with fabrica() as db:
+        sincronizacion.sincronizar(db, ConectorInvima(cliente), principio_ids)
+
+
+@router.post("/sincronizaciones/invima", status_code=status.HTTP_202_ACCEPTED)
+def sincronizar_invima(
+    peticion: PeticionSincronizacion,
+    tareas: BackgroundTasks,
+    fabrica: sessionmaker[Session] = Depends(get_session_factory),
+    cliente: InvimaClient = Depends(get_invima_client),
+) -> dict:
+    """Sincroniza medicamentos de Colombia (CUM de INVIMA)."""
+    tareas.add_task(_ejecutar_invima, fabrica, cliente, peticion.principio_ids)
+    return {"mensaje": "Sincronización con INVIMA iniciada", "principio_ids": peticion.principio_ids}
 
 
 def _ejecutar_sync(fabrica: sessionmaker[Session], cliente: OpenFDAClient, principio_ids: list[int] | None) -> None:

@@ -8,9 +8,11 @@ from app.models import PrincipioActivo
 from app.texto import normalizar
 
 
-def texto_busqueda(dci_es: str, dci_en: str, terminos_openfda: str | None) -> str:
-    terminos = (terminos_openfda or "").replace("+", " ").replace("|", " ")
-    return normalizar(f"{dci_es} {dci_en} {terminos}")
+def texto_busqueda(dci_es: str, dci_en: str, terminos_openfda: str | None, sinonimos: str | None = None) -> str:
+    """DCI, sinónimos locales (p. ej. «acetaminofén», «dipirona») y términos de openFDA, separados por «|»."""
+    terminos = (terminos_openfda or "").replace("+", "|")
+    partes = [dci_es, dci_en, *(sinonimos or "").split("|"), *terminos.split("|")]
+    return " | ".join(dict.fromkeys(normalizar(p) for p in partes if p.strip()))
 
 
 def cargar_principios(db: Session, ruta_csv: Path) -> tuple[int, int]:
@@ -29,7 +31,9 @@ def cargar_principios(db: Session, ruta_csv: Path) -> tuple[int, int]:
                 "vias_openfda": (fila.get("openfda_vias") or "").strip() or None,
                 "ficha_set_id_openfda": (fila.get("openfda_ficha_set_id") or "").strip() or None,
             }
-            datos["texto_busqueda"] = texto_busqueda(datos["dci_es"], datos["dci_en"], datos["terminos_openfda"])
+            datos["texto_busqueda"] = texto_busqueda(
+                datos["dci_es"], datos["dci_en"], datos["terminos_openfda"], fila.get("sinonimos")
+            )
             principio = existentes.get(datos["dci_es"])
             if principio is None:
                 db.add(PrincipioActivo(**datos))

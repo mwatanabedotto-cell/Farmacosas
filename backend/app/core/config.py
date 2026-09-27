@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     openfda_pausa_segundos: float = 0.3
 
     cima_pausa_segundos: float = 0.2
+    # Token opcional de datos.gov.co (Socrata): sube el límite de peticiones.
+    datosgov_app_token: str | None = None
+    invima_pausa_segundos: float = 0.2
 
     csv_principios: Path = RAIZ_REPO / "data" / "principios_activos_iniciales.csv"
 

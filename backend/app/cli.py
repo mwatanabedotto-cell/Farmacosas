@@ -5,6 +5,7 @@
     python -m app.cli importar-fichas [--dci enoxaparina ...]
     python -m app.cli sincronizar-cima [--dci enoxaparina ...]
     python -m app.cli importar-fichas-cima [--dci enoxaparina ...]
+    python -m app.cli sincronizar-invima [--dci enoxaparina ...]
 """
 
 import argparse
@@ -15,6 +16,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.connectors.cima import CimaClient, ConectorCima
+from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
@@ -36,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     p_cima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     p_fcima = sub.add_parser("importar-fichas-cima", help="Importa fichas técnicas de CIMA y actualiza borradores")
     p_fcima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
+    p_invima = sub.add_parser("sincronizar-invima", help="Descarga medicamentos de Colombia (CUM de INVIMA)")
+    p_invima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -71,10 +75,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{s.principio_activo.dci_es:35} {s.estado:6} {s.mensaje}")
                 errores += s.estado == "error"
             return 1 if errores else 0
-        ejecuciones = (
-            sincronizacion.sincronizar(db, ConectorCima(cima), ids) if args.comando == "sincronizar-cima"
-            else sync_openfda.sincronizar(db, cliente, ids)
-        )
+        if args.comando == "sincronizar-cima":
+            ejecuciones = sincronizacion.sincronizar(db, ConectorCima(cima), ids)
+        elif args.comando == "sincronizar-invima":
+            invima = InvimaClient(app_token=settings.datosgov_app_token, pausa_segundos=settings.invima_pausa_segundos)
+            ejecuciones = sincronizacion.sincronizar(db, ConectorInvima(invima), ids)
+        else:
+            ejecuciones = sync_openfda.sincronizar(db, cliente, ids)
         for s in ejecuciones:
             nombre = s.principio_activo.dci_es if s.principio_activo else "?"
             print(

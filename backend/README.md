@@ -15,6 +15,7 @@ python -m app.cli sincronizar-openfda --dci enoxaparina   # productos de EE. UU.
 python -m app.cli importar-fichas --dci enoxaparina       # ficha técnica de DailyMed + borrador de monografía
 python -m app.cli sincronizar-cima --dci enoxaparina      # medicamentos de España (CIMA, AEMPS)
 python -m app.cli importar-fichas-cima --dci enoxaparina  # ficha técnica española + borrador en español
+python -m app.cli sincronizar-invima --dci enoxaparina    # medicamentos de Colombia (CUM de INVIMA)
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -28,6 +29,8 @@ uvicorn app.main:app --reload      # documentación interactiva en http://localh
 | `FARMACOSAS_OPENFDA_MAX_RESULTADOS` | `5000` | Máximo de productos descargados por principio activo. |
 | `FARMACOSAS_OPENFDA_PAUSA_SEGUNDOS` | `0.3` | Pausa entre páginas. |
 | `FARMACOSAS_CIMA_PAUSA_SEGUNDOS` | `0.2` | Pausa entre peticiones a CIMA. |
+| `FARMACOSAS_DATOSGOV_APP_TOKEN` | — | Token de datos.gov.co (opcional). |
+| `FARMACOSAS_INVIMA_PAUSA_SEGUNDOS` | `0.2` | Pausa entre páginas de datos.gov.co. |
 
 ## Endpoints
 
@@ -48,6 +51,7 @@ Administración (cabecera `X-Admin-Key`):
 | POST | `/api/v1/admin/sincronizaciones/openfda` | Sincroniza productos de EE. UU. (`{"principio_ids": [..]}` o todos) |
 | POST | `/api/v1/admin/sincronizaciones/fichas-openfda` | Importa fichas técnicas de EE. UU. y actualiza borradores |
 | POST | `/api/v1/admin/sincronizaciones/cima` | Sincroniza medicamentos de España y después importa sus fichas técnicas |
+| POST | `/api/v1/admin/sincronizaciones/invima` | Sincroniza medicamentos de Colombia (CUM) |
 | GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
 | GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
 | PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
@@ -73,6 +77,8 @@ Fuente: [NDC Directory](https://open.fda.gov/apis/drug/ndc/) (dominio público).
 - Si un producto deja de aparecer en una descarga **completa**, pasa a `no_listado` (no se borra).
   Si la descarga se trunca por el límite, no se marca ninguna baja.
 
+- Columna `sinonimos` del CSV: nombres locales separados por `|` (p. ej. `acetaminofén`, `dipirona`,
+  `epinefrina`); se usan en la búsqueda y en la heurística de genéricos de INVIMA.
 - Columnas del CSV para openFDA: `openfda_ingredientes`, `openfda_filtro_nombre`, `openfda_vias`
   (vías preferidas para la ficha, separadas por `|`) y `openfda_ficha_set_id` (ficha fijada a mano).
 - Columna opcional `openfda_filtro_nombre`: expresión regular sobre el nombre comercial
@@ -114,6 +120,24 @@ el editor solo tiene que resumirla. Correspondencia con las secciones del vadem�
 4.2 → posología (subsección «Forma de administración» → modo de administración); 4.3 → contraindicaciones;
 4.4 → advertencias; 4.2 + 4.4 filtradas → insuficiencia renal/hepática; 4.5 → interacciones;
 4.6 → embarazo y lactancia; 4.8 → reacciones adversas; 4.9 → sobredosis; 5.1 → mecanismo de acción.
+
+## Conector INVIMA (Colombia)
+
+Fuente: Código Único de Medicamentos (CUM) publicado por INVIMA en [datos.gov.co](https://www.datos.gov.co/)
+(API Socrata). Se usan los conjuntos **vigentes** (`i7cb-raxc`) y **en trámite de renovación** (`vgr4-gemg`).
+
+- **Solo conjuntos oficiales:** en datos.gov.co hay copias subidas por particulares con la misma
+  atribución a INVIMA. El conector usa identificadores fijos y **comprueba en cada ejecución que el
+  propietario del conjunto sea Invima**; si no, se detiene con error.
+- Búsqueda por código ATC, como en CIMA. Las filas (registro × presentación × principio activo × rol)
+  se agrupan por **registro sanitario** (producto) y **CUM** (presentación). Se excluyen las muestras médicas.
+- Estado: `vigente` si el registro tiene al menos un CUM activo; si no, `no_comercializado`.
+- **Genérico (heurística):** el CUM no lo indica. Con ® o ™ es marca; si el nombre empieza por la
+  denominación común o un sinónimo local (columna `sinonimos`: *dipirona*, *acetaminofén*...), genérico.
+- La clasificación ATC es la de INVIMA. Hay errores de origen: p. ej. «INSULEX ® N» (NPH) figura como
+  insulina regular (A10AB01). No se corrigen automáticamente.
+- Token opcional `FARMACOSAS_DATOSGOV_APP_TOKEN` para ampliar el límite de peticiones de datos.gov.co.
+- INVIMA no publica fichas técnicas por API: la monografía se apoya en las de España y EE. UU.
 
 ## Monografías en formato vademécum
 

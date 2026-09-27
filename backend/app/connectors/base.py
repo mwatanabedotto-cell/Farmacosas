@@ -97,3 +97,30 @@ def html_a_texto(html: str | None) -> str:
     parser.feed(html)
     lineas = (" ".join(linea.replace("\xa0", " ").split()) for linea in "".join(parser.partes).split("\n"))
     return "\n".join(linea for linea in lineas if linea and linea != "|").strip()
+
+
+# Palabras que marcan el fin de la marca en el nombre de un medicamento.
+FORMAS = {
+    "COMPRIMIDO", "COMPRIMIDOS", "CAPSULA", "CAPSULAS", "CÁPSULA", "CÁPSULAS", "SOLUCION", "SOLUCIÓN",
+    "SUSPENSION", "SUSPENSIÓN", "POLVO", "JARABE", "CREMA", "POMADA", "GEL", "PARCHE", "PARCHES",
+    "INYECTABLE", "GRANULADO", "GRANULOS", "GRÁNULOS", "SOBRES", "SUPOSITORIOS", "COLIRIO", "AEROSOL",
+    "EMULSION", "EMULSIÓN", "CONCENTRADO", "LIOFILIZADO", "GOTAS", "PASTILLAS", "INHALADOR",
+    "TABLETA", "TABLETAS", "GRAGEA", "GRAGEAS", "AMPOLLA", "AMPOLLAS", "JERINGA", "JERINGAS", "VIAL",
+    "VIALES", "ELIXIR", "OVULOS", "ÓVULOS",
+}
+# Palabras que quedan colgando al cortar antes de la concentración ("SULFATO DE MAGNESIO AL 20 %").
+CONECTORES_FINALES = {"AL", "EN", "DE", "X", "POR", "CON", "Y", "+", "/"}
+MARCAS_REGISTRADAS = str.maketrans({"®": " ", "™": " ", "©": " "})
+
+
+def marca(nombre: str) -> str:
+    """'CLEXANE 4.000 UI (40 mg)/0,4 ml SOLUCION...' -> 'CLEXANE'; 'WOSULIN ® R 100UI/ML' -> 'WOSULIN R'."""
+    palabras = []
+    for palabra in nombre.translate(MARCAS_REGISTRADAS).split():
+        limpia = palabra.strip(",;()").upper()
+        if palabras and (any(c.isdigit() for c in palabra) or limpia in FORMAS):
+            break
+        palabras.append(palabra)
+    while len(palabras) > 1 and palabras[-1].upper() in CONECTORES_FINALES:
+        palabras.pop()
+    return " ".join(palabras).strip(" ,") or nombre.strip()

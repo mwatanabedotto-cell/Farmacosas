@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.connectors.base import ClienteHTTP, ErrorConector, ResultadoProductos, html_a_texto
+from app.connectors.base import ClienteHTTP, ErrorConector, ResultadoProductos, html_a_texto, marca
 
 BASE_URL = "https://cima.aemps.es/cima/rest"
 URL_DETALLE = "https://cima.aemps.es/cima/publico/detalle.html?nregistro={}"
@@ -21,15 +21,6 @@ MAX_PAGINAS = 20  # 200 por página: hasta 4000 medicamentos por código ATC
 # Secciones de la ficha técnica (resumen de características del producto) que se importan.
 PREFIJOS_FICHA = ("4", "5.1", "5.2")
 
-# Palabras que marcan el fin de la marca en el nombre del medicamento.
-FORMAS = {
-    "COMPRIMIDO", "COMPRIMIDOS", "CAPSULA", "CAPSULAS", "CÁPSULA", "CÁPSULAS", "SOLUCION", "SOLUCIÓN",
-    "SUSPENSION", "SUSPENSIÓN", "POLVO", "JARABE", "CREMA", "POMADA", "GEL", "PARCHE", "PARCHES",
-    "INYECTABLE", "GRANULADO", "GRANULOS", "GRÁNULOS", "SOBRES", "SUPOSITORIOS", "COLIRIO", "AEROSOL",
-    "EMULSION", "EMULSIÓN", "CONCENTRADO", "LIOFILIZADO", "GOTAS", "PASTILLAS", "INHALADOR",
-}
-
-
 class CimaError(ErrorConector):
     pass
 
@@ -38,17 +29,6 @@ def _fecha_ms(ms: int | None) -> str | None:
     if not ms:
         return None
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date().isoformat()
-
-
-def marca(nombre: str) -> str:
-    """'CLEXANE 4.000 UI (40 mg)/0,4 ml SOLUCION...' -> 'CLEXANE'."""
-    palabras = []
-    for palabra in nombre.split():
-        limpia = palabra.strip(",;()").upper()
-        if palabras and (palabra[:1].isdigit() or limpia in FORMAS):
-            break
-        palabras.append(palabra)
-    return " ".join(palabras).strip(" ,") or nombre
 
 
 def estado(med: dict) -> str:

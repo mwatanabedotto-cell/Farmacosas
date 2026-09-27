@@ -29,3 +29,8 @@ def test_cargar_principios_es_idempotente(db):
     assert cargar_principios(db, ruta) == (100, 0)
     assert cargar_principios(db, ruta) == (0, 0)
     assert db.scalar(select(func.count()).select_from(PrincipioActivo)) == 100
+
+
+def test_sinonimos_en_busqueda(db_sembrada):
+    p = db_sembrada.scalar(select(PrincipioActivo).where(PrincipioActivo.dci_es == "paracetamol"))
+    assert "acetaminofen" in p.texto_busqueda.split(" | ")
