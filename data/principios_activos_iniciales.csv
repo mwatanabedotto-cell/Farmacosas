@@ -8,7 +8,7 @@ n,dci_es,dci_en,atc,grupo,sinonimos,openfda_ingredientes,openfda_filtro_nombre,o
 7,morfina,morphine,N02AA01,Analgesia y antiinflamatorios,,morphine,,,1f53de80-efc8-4930-b3e3-fba0d026af05
 8,fentanilo,fentanyl,N02AB03 / N01AH01,Analgesia y antiinflamatorios,,fentanyl,,,
 9,amoxicilina,amoxicillin,J01CA04,Antiinfecciosos,,amoxicillin,,,
-10,amoxicilina + ácido clavulánico,amoxicillin and beta-lactamase inhibitor,J01CR02,Antiinfecciosos,,amoxicillin+clavulanate|clavulanic acid,,,
+10,amoxicilina + ácido clavulánico,amoxicillin and beta-lactamase inhibitor,J01CR02,Antiinfecciosos,amoxicilina + clavulanato,amoxicillin+clavulanate|clavulanic acid,,,
 11,cefalexina,cefalexin,J01DB01,Antiinfecciosos,,cephalexin|cefalexin,,,
 12,cefazolina,cefazolin,J01DB04,Antiinfecciosos,,cefazolin,,,
 13,ceftriaxona,ceftriaxone,J01DD04,Antiinfecciosos,,ceftriaxone,,,
@@ -16,7 +16,7 @@ n,dci_es,dci_en,atc,grupo,sinonimos,openfda_ingredientes,openfda_filtro_nombre,o
 15,ciprofloxacino,ciprofloxacin,J01MA02,Antiinfecciosos,,ciprofloxacin,,,
 16,levofloxacino,levofloxacin,J01MA12,Antiinfecciosos,,levofloxacin,,,
 17,nitrofurantoína,nitrofurantoin,J01XE01,Antiinfecciosos,,nitrofurantoin,,,
-18,sulfametoxazol + trimetoprima,sulfamethoxazole and trimethoprim,J01EE01,Antiinfecciosos,cotrimoxazol|trimetoprim sulfametoxazol,sulfamethoxazole+trimethoprim,,,
+18,sulfametoxazol + trimetoprima,sulfamethoxazole and trimethoprim,J01EE01,Antiinfecciosos,cotrimoxazol|trimetoprim sulfametoxazol|trimetoprima + sulfametoxazol,sulfamethoxazole+trimethoprim,,,
 19,clindamicina,clindamycin,J01FF01,Antiinfecciosos,,clindamycin,,,
 20,metronidazol,metronidazole,J01XD01 / P01AB01,Antiinfecciosos,,metronidazole,,,
 21,doxiciclina,doxycycline,J01AA02,Antiinfecciosos,,doxycycline,,,f9277bb8-982d-444d-9325-35d5c53a2d35
@@ -51,15 +51,15 @@ n,dci_es,dci_en,atc,grupo,sinonimos,openfda_ingredientes,openfda_filtro_nombre,o
 50,metformina,metformin,A10BA02,Endocrino y metabolismo,,metformin,,,
 51,glibenclamida,glibenclamide,A10BB01,Endocrino y metabolismo,gliburida,glyburide|glibenclamide,,,
 52,insulina glargina,insulin glargine,A10AE04,Endocrino y metabolismo,,insulin glargine,,SUBCUTANEOUS|INTRAVENOUS,
-53,insulina humana regular,insulin (human) fast-acting,A10AB01,Endocrino y metabolismo,,insulin human,!\bN\b|\d+/\d+,SUBCUTANEOUS|INTRAVENOUS,b519bd83-038c-4ec5-a231-a51ec5cc291f
-54,insulina humana NPH,insulin (human) intermediate-acting,A10AC01,Endocrino y metabolismo,insulina isófana,insulin human|insulin isophane|isophane insulin human,\bN\b,SUBCUTANEOUS|INTRAVENOUS,
+53,insulina humana regular,insulin (human) fast-acting,A10AB01,Endocrino y metabolismo,insulina humana|insulina humana de acción rápida,insulin human,!\bN\b|\d+/\d+,SUBCUTANEOUS|INTRAVENOUS,b519bd83-038c-4ec5-a231-a51ec5cc291f
+54,insulina humana NPH,insulin (human) intermediate-acting,A10AC01,Endocrino y metabolismo,insulina isófana|insulina humana isófana,insulin human|insulin isophane|isophane insulin human,\bN\b,SUBCUTANEOUS|INTRAVENOUS,
 55,empagliflozina,empagliflozin,A10BK03,Endocrino y metabolismo,,empagliflozin,,,
 56,levotiroxina,levothyroxine sodium,H03AA01,Endocrino y metabolismo,,levothyroxine,,,
 57,omeprazol,omeprazole,A02BC01,Digestivo,,omeprazole,,,
 58,pantoprazol,pantoprazole,A02BC02,Digestivo,,pantoprazole,,,
 59,metoclopramida,metoclopramide,A03FA01,Digestivo,,metoclopramide,,,
 60,ondansetrón,ondansetron,A04AA01,Digestivo,,ondansetron,,,
-61,butilbromuro de hioscina,butylscopolamine,A03BB01,Digestivo,butilescopolamina|hioscina,butylscopolamine|scopolamine butylbromide,,,
+61,butilbromuro de hioscina,butylscopolamine,A03BB01,Digestivo,butilescopolamina|hioscina|butilhioscina|bromuro de butilhioscina,butylscopolamine|scopolamine butylbromide,,,
 62,lactulosa,lactulose,A06AD11,Digestivo,,lactulose,,,
 63,salbutamol,salbutamol,R03AC02,Respiratorio y alergia,albuterol,albuterol|salbutamol,,RESPIRATORY (INHALATION),
 64,budesonida inhalada,budesonide,R03BA02,Respiratorio y alergia,,budesonide,,RESPIRATORY (INHALATION),

@@ -17,6 +17,7 @@ python -m app.cli sincronizar-cima --dci enoxaparina      # medicamentos de Espa
 python -m app.cli importar-fichas-cima --dci enoxaparina  # ficha técnica española + borrador en español
 python -m app.cli sincronizar-invima --dci enoxaparina    # medicamentos de Colombia (CUM de INVIMA)
 python -m app.cli sincronizar-liname                      # LINAME de Bolivia (AGEMED)
+python -m app.cli sincronizar-cofepris                    # registros sanitarios de México (listados COFEPRIS)
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 
@@ -55,6 +56,7 @@ Administración (cabecera `X-Admin-Key`):
 | POST | `/api/v1/admin/sincronizaciones/cima` | Sincroniza medicamentos de España y después importa sus fichas técnicas |
 | POST | `/api/v1/admin/sincronizaciones/invima` | Sincroniza medicamentos de Colombia (CUM) |
 | POST | `/api/v1/admin/sincronizaciones/liname` | Descarga la LINAME de Bolivia |
+| POST | `/api/v1/admin/sincronizaciones/cofepris` | Sincroniza registros sanitarios de México |
 | GET | `/api/v1/admin/sincronizaciones` | Historial de sincronizaciones e importaciones |
 | GET | `/api/v1/admin/principios/{id}/borrador` | Borrador con errores que impiden publicar y avisos de formato |
 | PUT | `/api/v1/admin/monografias/{id}/secciones/{tipo}` | Edita una sección (`contenido`, `idioma`, `referencia_ids`) |
@@ -141,6 +143,26 @@ Fuente: Código Único de Medicamentos (CUM) publicado por INVIMA en [datos.gov.
   insulina regular (A10AB01). No se corrigen automáticamente.
 - Token opcional `FARMACOSAS_DATOSGOV_APP_TOKEN` para ampliar el límite de peticiones de datos.gov.co.
 - INVIMA no publica fichas técnicas por API: la monografía se apoya en las de España y EE. UU.
+
+## Conector COFEPRIS (México)
+
+El buscador y el visor de registros de COFEPRIS y datos.gob.mx rechazan el acceso automatizado (403 del propio
+servidor), así que se usan los **listados oficiales en PDF** que COFEPRIS publica en
+[gob.mx](https://www.gob.mx/cofepris/documentos/registros-sanitarios-medicamentos):
+registros de medicamentos alopáticos **expedidos** cada año desde 2015 (formato tabular homogéneo; hoy
+~3900 registros de 2015–2026) y los registros **revocados** y **cancelados**.
+
+- Por registro: número (`001M2026 SSA`), titular, denominación distintiva (marca) y genérica, forma
+  farmacéutica, **condición de venta** según el art. 226 de la LGS (fracción I–VI: receta especial,
+  receta retenida, receta médica, venta libre...) y fecha de vigencia.
+- Estado: `revocado`/`cancelado` según las listas oficiales; `vigente` si la vigencia no ha vencido;
+  **`vigencia_por_confirmar`** si ya venció (pudo renovarse, pero COFEPRIS no publica las prórrogas).
+- Sin ATC en origen: asignación por **denominación genérica** (componentes exactos, sales como
+  «Clorhidrato de tramadol», sinónimos mexicanos) eligiendo el principio activo más específico
+  («Insulina humana isófana» → NPH). Se excluyen formas de uso local (cremas, colirios, óvulos...).
+- **Limitación de cobertura:** solo registros expedidos desde 2015; los medicamentos registrados antes y
+  renovados (muchos originales) no aparecen. Para completarlos: carga asistida.
+- Los PDF se descargan una vez por sincronización (unos 15 archivos).
 
 ## Bolivia (AGEMED): Lista Nacional de Medicamentos Esenciales
 

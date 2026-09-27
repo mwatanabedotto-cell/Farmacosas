@@ -7,6 +7,7 @@
     python -m app.cli importar-fichas-cima [--dci enoxaparina ...]
     python -m app.cli sincronizar-invima [--dci enoxaparina ...]
     python -m app.cli sincronizar-liname
+    python -m app.cli sincronizar-cofepris [--dci enoxaparina ...]
 """
 
 import argparse
@@ -18,12 +19,13 @@ from sqlalchemy import select
 
 from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
+from app.connectors.cofepris import CofeprisClient
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import PrincipioActivo
-from app.services import fichas, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
+from app.services import cofepris, fichas, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
 from app.services.semilla import cargar_principios
 
 
@@ -43,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     p_invima = sub.add_parser("sincronizar-invima", help="Descarga medicamentos de Colombia (CUM de INVIMA)")
     p_invima.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     sub.add_parser("sincronizar-liname", help="Descarga la LINAME de Bolivia (AGEMED)")
+    p_mx = sub.add_parser("sincronizar-cofepris", help="Registros sanitarios de México (listados de COFEPRIS)")
+    p_mx.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -86,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if errores else 0
         if args.comando == "sincronizar-cima":
             ejecuciones = sincronizacion.sincronizar(db, ConectorCima(cima), ids)
+        elif args.comando == "sincronizar-cofepris":
+            ejecuciones = cofepris.sincronizar(db, CofeprisClient(pausa_segundos=settings.cofepris_pausa_segundos), ids)
         elif args.comando == "sincronizar-invima":
             invima = InvimaClient(app_token=settings.datosgov_app_token, pausa_segundos=settings.invima_pausa_segundos)
             ejecuciones = sincronizacion.sincronizar(db, ConectorInvima(invima), ids)

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.connectors.agemed import AgemedClient
 from app.connectors.cima import CimaClient, ConectorCima
+from app.connectors.cofepris import CofeprisClient
 from app.connectors.invima import ConectorInvima, InvimaClient
 from app.connectors.openfda import OpenFDAClient
 from app.core.config import Settings, get_settings
@@ -22,7 +23,7 @@ from app.schemas import (
     SeccionBorrador,
     SincronizacionSalida,
 )
-from app.services import fichas, fichas_cima, listas_esenciales, monografias, sincronizacion, sync_openfda
+from app.services import cofepris, fichas, fichas_cima, listas_esenciales, monografias, sincronizacion, sync_openfda
 
 router = APIRouter(prefix="/admin", tags=["administración"], dependencies=[Depends(requerir_admin)])
 
@@ -78,6 +79,27 @@ def sincronizar_liname(
     """Descarga la LINAME vigente de Bolivia (AGEMED) y la asigna a los principios activos."""
     tareas.add_task(_ejecutar_liname, fabrica, cliente)
     return {"mensaje": "Sincronización de la LINAME (Bolivia) iniciada"}
+
+
+def get_cofepris_client(settings: Settings = Depends(get_settings)) -> CofeprisClient:
+    return CofeprisClient(pausa_segundos=settings.cofepris_pausa_segundos)
+
+
+def _ejecutar_cofepris(fabrica: sessionmaker[Session], cliente: CofeprisClient, principio_ids: list[int] | None) -> None:
+    with fabrica() as db:
+        cofepris.sincronizar(db, cliente, principio_ids)
+
+
+@router.post("/sincronizaciones/cofepris", status_code=status.HTTP_202_ACCEPTED)
+def sincronizar_cofepris(
+    peticion: PeticionSincronizacion,
+    tareas: BackgroundTasks,
+    fabrica: sessionmaker[Session] = Depends(get_session_factory),
+    cliente: CofeprisClient = Depends(get_cofepris_client),
+) -> dict:
+    """Sincroniza registros sanitarios de México (listados de COFEPRIS en gob.mx)."""
+    tareas.add_task(_ejecutar_cofepris, fabrica, cliente, peticion.principio_ids)
+    return {"mensaje": "Sincronización con COFEPRIS iniciada", "principio_ids": peticion.principio_ids}
 
 
 def _ejecutar_sync(fabrica: sessionmaker[Session], cliente: OpenFDAClient, principio_ids: list[int] | None) -> None:

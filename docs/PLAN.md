@@ -85,9 +85,9 @@ farmacéuticos y estudiantes de medicina con acceso limitado.
 | 1 | España | AEMPS | CIMA | API REST pública | EFG |
 | 2 | Colombia | INVIMA | Código Único de Medicamentos (CUM) en datos.gov.co | API de datos abiertos | — |
 | 3 | Argentina | ANMAT | Vademécum Nacional de Medicamentos | Consulta web / descargas | — |
-| 4 | Chile | ISP | Registro sanitario de productos farmacéuticos | Consulta web | Bioequivalente |
+| 4 | Chile | ISP | Registro sanitario de productos farmacéuticos | Sin acceso desde el entorno de desarrollo (conexión cortada); datos.gob.cl solo tiene listados de 2015–2017 | Bioequivalente |
 | 5 | Perú | DIGEMID | Registro sanitario / Observatorio de productos farmacéuticos | Consulta web | — |
-| 6 | México | COFEPRIS | Registros sanitarios; Compendio Nacional de Insumos (CSG) | Consulta web / PDF | GI (genérico intercambiable) |
+| 6 | México | COFEPRIS | Listados en PDF de registros expedidos (desde 2015), revocados y cancelados (gob.mx); el buscador y datos.gob.mx bloquean el acceso automatizado | PDF oficial; cobertura parcial | — |
 | 7 | Bolivia | AGEMED | LINAME (lista nacional de medicamentos esenciales) en Excel; el registro sanitario no es público (buscador con reCAPTCHA) | Descarga oficial (LINAME); marcas por carga asistida | — |
 
 **Secundarios (fases posteriores):**
@@ -333,6 +333,6 @@ docs/
 
 1. Validar la lista de [`data/principios_activos_iniciales.csv`](../data/principios_activos_iniciales.csv) (añadir o quitar según la práctica clínica).
 2. ~~Crear el esqueleto del backend FastAPI (modelos, migraciones, búsqueda) y cargar la lista semilla.~~ Hecho — ver [`backend/README.md`](../backend/README.md). Pendiente: usuarios con roles y MFA.
-3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~, ~~fichas de DailyMed + flujo editorial de monografías~~, ~~AEMPS CIMA (medicamentos y fichas en español)~~, ~~INVIMA CUM (Colombia)~~ y ~~LINAME de Bolivia (AGEMED)~~ hechos; pendientes Argentina (ANMAT), Chile (ISP), Perú (DIGEMID), México (COFEPRIS), RxNorm (EE. UU.) y el importador de referencias desde PubMed.
+3. Implementar los conectores con API pública: ~~openFDA NDC (EE. UU.)~~, ~~fichas de DailyMed + flujo editorial de monografías~~, ~~AEMPS CIMA (medicamentos y fichas en español)~~, ~~INVIMA CUM (Colombia)~~, ~~LINAME de Bolivia (AGEMED)~~ y ~~listados de COFEPRIS (México)~~ hechos; pendientes Argentina (ANMAT), Chile (ISP, bloqueado), Perú (DIGEMID), RxNorm (EE. UU.) y el importador de referencias desde PubMed.
 4. Definir la checklist de revisión editorial y redactar la primera monografía piloto (p. ej. enoxaparina, que incluye ajuste renal y manejo perioperatorio).
 5. Prototipar la pantalla de monografía y la tabla de disponibilidad.
