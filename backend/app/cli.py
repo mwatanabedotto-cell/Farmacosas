@@ -9,6 +9,7 @@
     python -m app.cli sincronizar-liname
     python -m app.cli sincronizar-cofepris [--dci enoxaparina ...]
     python -m app.cli sincronizar-pami [--dci enoxaparina ...]
+    python -m app.cli regenerar-borradores [--dci enoxaparina ...]
 """
 
 import argparse
@@ -27,7 +28,7 @@ from app.connectors.openfda import OpenFDAClient
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import PrincipioActivo
-from app.services import cofepris, fichas, pami, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
+from app.services import cofepris, fichas, monografias, pami, fichas_cima, listas_esenciales, sincronizacion, sync_openfda
 from app.services.semilla import cargar_principios
 
 
@@ -51,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     p_mx.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     p_ar = sub.add_parser("sincronizar-pami", help="Medicamentos de Argentina (listado de PAMI)")
     p_ar.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
+    p_borr = sub.add_parser("regenerar-borradores",
+                            help="Vuelve a extraer los borradores de monografía (no toca lo revisado por el editor)")
+    p_borr.add_argument("--dci", nargs="*", help="DCI en español (por defecto, todos)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -76,6 +80,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"No encontrados: {', '.join(sorted(faltan))}", file=sys.stderr)
                 return 1
             ids = [p.id for p in principios]
+        if args.comando == "regenerar-borradores":
+            consulta = select(PrincipioActivo).order_by(PrincipioActivo.dci_es)
+            if ids is not None:
+                consulta = consulta.where(PrincipioActivo.id.in_(ids))
+            llenas: dict[str, int] = {}
+            total = 0
+            for principio in db.scalars(consulta).all():
+                borrador = monografias.generar_borrador(db, principio, forzar=True)
+                if borrador is None:
+                    print(f"{principio.dci_es:35} sin ficha técnica o ya publicada con esta ficha")
+                    continue
+                total += 1
+                vacias = [s.tipo for s in borrador.secciones if s.origen == "vacia"]
+                for s in borrador.secciones:
+                    llenas[s.tipo] = llenas.get(s.tipo, 0) + (s.origen != "vacia")
+                print(f"{principio.dci_es:35} {borrador.ficha.pais} vacías: {', '.join(vacias) or '-'}")
+            print(f"\nBorradores: {total}")
+            for tipo in llenas:
+                print(f"  {tipo:28} {llenas[tipo]}/{total}")
+            return 0
         cliente = OpenFDAClient(
             api_key=settings.openfda_api_key,
             max_resultados=settings.openfda_max_resultados,

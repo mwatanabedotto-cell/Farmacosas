@@ -19,6 +19,7 @@ python -m app.cli sincronizar-invima --dci enoxaparina    # medicamentos de Colo
 python -m app.cli sincronizar-liname                      # LINAME de Bolivia (AGEMED)
 python -m app.cli sincronizar-cofepris                    # registros sanitarios de México (listados COFEPRIS)
 python -m app.cli sincronizar-pami                        # medicamentos de Argentina (listado de PAMI)
+python -m app.cli regenerar-borradores                    # vuelve a extraer los borradores (respeta lo revisado)
 uvicorn app.main:app --reload      # documentación interactiva en http://localhost:8000/docs
 ```
 

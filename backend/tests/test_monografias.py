@@ -69,11 +69,87 @@ def test_borrador_desde_ficha(db_sembrada):
     assert s["insuficiencia_renal"].contenido == "2.3 In severe renal impairment (creatinine clearance <30 mL/min) use 30 mg once daily."
     # La frase de uso pediátrico ("hepatic failure") no se cuela en insuficiencia hepática.
     assert s["insuficiencia_hepatica"].contenido == "Hepatic Impairment: use with care in patients with hepatic impairment."
-    assert s["lactancia"].contenido == "8.2 Lactation It is unknown whether it is excreted in human milk."
+    assert s["embarazo_lactancia"].contenido == "8.1 Pregnancy Risk Summary data."
+    assert s["posologia_ninos"].contenido == "Benzyl alcohol caused hepatic failure in neonates."
+    assert s["posologia_adultos"].contenido.startswith("2.1 Adults: 40 mg once daily.")
     ref = s["indicaciones"].referencias[0]
     assert ref.tipo == "ficha_tecnica" and ref.clave == "dailymed:set-1:1"
     # Idempotente
     assert m.generar_borrador(db_sembrada, principio(db_sembrada), mono.ficha).id == mono.id
+
+
+def test_posologia_adultos_y_ninos_desde_ficha_espanola():
+    from app.models import FuenteDatos
+    ficha = FichaTecnica(fuente=FuenteDatos(codigo="cima_ft"), secciones=[
+        SeccionFicha(codigo="4.2.1", titulo="Posología", orden=1, texto="Adultos: 1 g cada 8 h."),
+        SeccionFicha(codigo="4.2.2", titulo="Población pediátrica", orden=2, texto="Niños: 20 mg/kg cada 8 h."),
+        SeccionFicha(codigo="4.2.3", titulo="Forma de administración", orden=3, texto="Vía intravenosa lenta."),
+        SeccionFicha(codigo="5.1", titulo="Propiedades farmacodinámicas", orden=4, texto="Inhibe la síntesis de la pared."),
+        SeccionFicha(codigo="5.2", titulo="Propiedades farmacocinéticas", orden=5, texto="Semivida de 1 h; eliminación renal."),
+    ])
+    t = lambda tipo: m.texto_desde_ficha(ficha, m.TIPOS[tipo])  # noqa: E731
+    assert t("posologia_adultos") == "Adultos: 1 g cada 8 h."
+    assert t("posologia_ninos") == "Niños: 20 mg/kg cada 8 h."
+    assert t("modo_administracion") == "Vía intravenosa lenta."
+    assert t("mecanismo_farmacocinetica") == "Inhibe la síntesis de la pared.\n\nSemivida de 1 h; eliminación renal."
+
+
+def test_posologia_sin_subsecciones_separa_administracion_y_ninos():
+    """Fichas con el 4.2 en un solo bloque: se reparte por frases."""
+    from app.models import FuenteDatos
+    ficha = FichaTecnica(fuente=FuenteDatos(codigo="cima_ft"), secciones=[
+        SeccionFicha(codigo="4.2", titulo="Posología y forma de administración", orden=1,
+                     texto="Adultos: 500 mg cada 12 h. En niños, 10 mg/kg cada 12 h. "
+                           "Tragar el comprimido entero con las comidas."),
+    ])
+    t = lambda tipo: m.texto_desde_ficha(ficha, m.TIPOS[tipo])  # noqa: E731
+    assert "500 mg" in t("posologia_adultos")
+    assert "10 mg/kg" in t("posologia_ninos")
+    assert "Tragar" in t("modo_administracion")
+
+
+def test_alerta_se_toma_de_otra_ficha(db_sembrada):
+    """La ficha española no trae recuadro de advertencia: se toma de la de EE. UU. y se cita esa."""
+    p = principio(db_sembrada)
+    ficha_us = crear_ficha(db_sembrada, p, **SECCIONES)
+    from app.services import fichas_cima
+    ficha_es = FichaTecnica(principio_activo=p, fuente=fichas_cima.obtener_fuente(db_sembrada), pais="ES", idioma="es",
+                            set_id="es-1", spl_id="es-1", titulo="Clexane", url="https://cima/x", hash_contenido="h",
+                            fecha_extraccion=ahora(), fecha_actualizacion=ahora(),
+                            secciones=[SeccionFicha(codigo="4.1", titulo="Indicaciones terapéuticas", orden=0,
+                                                    texto="Profilaxis de la TVP.")])
+    db_sembrada.add(ficha_es)
+    db_sembrada.commit()
+    mono = m.generar_borrador(db_sembrada, p, ficha_es)
+    alerta = secciones(mono)["alerta"]
+    assert alerta.origen == "ficha_importada" and "HEMATOMAS" in alerta.contenido
+    assert alerta.idioma == "en"
+    assert [r.id for r in alerta.referencias] == [m.referencia_de_ficha(db_sembrada, ficha_us).id]
+
+
+def test_borrador_antiguo_se_adapta_a_la_estructura_actual(db_sembrada):
+    """Un borrador con las secciones antiguas (Posología, Embarazo, Lactancia) conserva lo revisado."""
+    from app.models import SeccionMonografia
+    mono = borrador(db_sembrada)
+    ref = secciones(mono)["indicaciones"].referencias[0].id
+    nuevas = {"posologia_adultos", "embarazo_lactancia", "posologia_ninos", "mecanismo_farmacocinetica"}
+    for s in [s for s in mono.secciones if s.tipo in nuevas]:
+        mono.secciones.remove(s)
+        db_sembrada.delete(s)
+    for tipo in ("posologia", "embarazo", "lactancia"):
+        mono.secciones.append(SeccionMonografia(tipo=tipo, orden=99, origen="vacia"))
+    db_sembrada.commit()
+    for tipo, texto in (("embarazo", "Evitar en el primer trimestre."), ("lactancia", "Compatible con la lactancia.")):
+        m.editar_seccion(db_sembrada, mono, tipo, texto, "es", [ref])
+
+    m.generar_borrador(db_sembrada, principio(db_sembrada), mono.ficha)
+    db_sembrada.refresh(mono)
+    assert [x.tipo for x in mono.secciones] == [t.tipo for t in m.TIPOS_SECCION]
+    s = secciones(mono)
+    assert s["embarazo_lactancia"].origen == "editor"
+    assert s["embarazo_lactancia"].contenido == "Evitar en el primer trimestre.\n\nCompatible con la lactancia."
+    assert [r.id for r in s["embarazo_lactancia"].referencias] == [ref]
+    assert s["posologia_adultos"].origen == "ficha_importada"
 
 
 def test_no_se_publica_sin_revision_ni_pautas(db_sembrada):

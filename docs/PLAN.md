@@ -138,31 +138,41 @@ literatura biomédica indexada, y publica casi todo por API pública:
 La monografía es **una ficha breve de vademécum**, en español y pensada para leerse en segundos,
 no una copia de la ficha técnica. Orden:
 
-1. **Cabecera**: DCI, ATC, grupo terapéutico, **nombres comerciales por país**, fecha de última
-   actualización, revisor e indicador de frescura.
-2. **Alerta destacada** (*boxed warning*), si existe.
-3. **Mecanismo de acción**.
-4. **Indicaciones** (aprobadas; *off-label* claramente marcado).
-5. **Posología en tabla de pautas**: indicación · población · dosis · vía · frecuencia · duración ·
-   dosis máxima · notas.
+1. **Cabecera**: DCI, ATC, grupo terapéutico, **mes y año de la última revisión** («sin revisar»
+   mientras no haya versión publicada), revisor e indicador de frescura. Los nombres comerciales van
+   en su propia pestaña.
+2. **Alerta destacada** (*boxed warning*), si existe; si la ficha base (p. ej. la española) no la
+   trae, se toma de la ficha de EE. UU. y se cita esa.
+3. **Indicaciones** (aprobadas; *off-label* claramente marcado).
+4. **Posología en adultos**: tabla de pautas (indicación · población · dosis · vía · frecuencia ·
+   duración · dosis máxima · notas), con notas para mayores de 65 años.
+5. **Posología en niños**: pautas por kg con dosis máxima.
 6. **Modo de administración**.
-7. **Contraindicaciones**.
-8. **Advertencias y precauciones**.
-9. **Insuficiencia renal** (por ClCr/TFG, diálisis) · 10. **Insuficiencia hepática** (Child-Pugh).
+7. **Ajuste en insuficiencia renal** (por ClCr/TFG, diálisis) · 8. **Ajuste en insuficiencia
+   hepática** (Child-Pugh).
+9. **Contraindicaciones**.
+10. **Advertencias y precauciones**.
 11. **Interacciones**.
-12. **Embarazo** · 13. **Lactancia**.
-14. **Reacciones adversas**.
-15. **Sobredosis y antídoto**.
-16. **Consideraciones perioperatorias** (suspensión/reinicio, anestesia neuraxial…).
+12. **Embarazo y lactancia**.
+13. **Reacciones adversas**.
+14. **Sobredosis y antídoto**.
+15. **Consideraciones perioperatorias** (suspensión/reinicio, anestesia neuraxial…); la redacta
+    siempre el editor.
+16. **Mecanismo de acción y farmacocinética**.
     *Fase 2:* **Evidencia reciente** (PubMed / ClinicalTrials.gov, ver §3.4).
 17. **Referencias** numeradas al final, estilo Vancouver, con enlace, DOI/PMID y fecha de consulta.
+
+Los borradores con la estructura antigua (Posología, Embarazo, Lactancia, Mecanismo de acción) se
+adaptan solos: lo revisado por el editor se conserva y se fusiona en la sección nueva.
+`python -m app.cli regenerar-borradores` vuelve a extraer los borradores tras mejorar los filtros,
+sin tocar lo revisado.
 
 Cada sección y cada pauta muestran sus citas `[1]`, `[2]`, y cada sección su fecha de verificación.
 La ficha técnica oficial completa (texto original) queda accesible aparte, como fuente.
 
 ## 5. Disponibilidad por región
 
-Vista de tabla filtrable por país (el país del usuario viene preseleccionado):
+Vista de tabla filtrable por país (por defecto, «Todos»):
 
 | País | Nombre comercial | Laboratorio | Presentación | Registro | Estado | Verificado |
 |---|---|---|---|---|---|---|

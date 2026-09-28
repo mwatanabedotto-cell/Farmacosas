@@ -202,8 +202,8 @@ def _vista_borrador(db: Session, m: Monografia) -> MonografiaBorrador:
         secciones=[
             SeccionBorrador(
                 tipo=s.tipo,
-                titulo=monografias.TIPOS[s.tipo].titulo,
-                obligatoria=monografias.TIPOS[s.tipo].obligatoria,
+                titulo=monografias.titulo_seccion(s.tipo),
+                obligatoria=monografias.obligatoria(s.tipo),
                 origen=s.origen,
                 idioma=s.idioma,
                 contenido=s.contenido,

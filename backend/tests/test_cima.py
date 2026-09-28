@@ -183,12 +183,13 @@ def test_ficha_cima_y_borrador_en_espanol(db_sembrada):
 
     t = lambda tipo: texto_desde_ficha(ficha, TIPOS[tipo])  # noqa: E731
     assert t("indicaciones") == "Profilaxis de la ETV."
-    assert t("posologia").startswith("40 mg una vez al día.")
+    assert t("posologia_adultos").startswith("40 mg una vez al día.")
+    assert t("posologia_ninos") is None  # la ficha de prueba no tiene subsección pediátrica
     assert t("modo_administracion") == "Inyección subcutánea profunda."
     assert t("insuficiencia_renal") == "Insuficiencia renal grave (aclaramiento de creatinina <30 ml/min): 20 mg una vez al día."
     assert t("insuficiencia_hepatica") == "Precaución en insuficiencia hepática."
-    assert (t("embarazo"), t("lactancia")) == ("No atraviesa la placenta.", "Puede utilizarse durante la lactancia.")
-    assert t("mecanismo_accion") == "Grupo: heparinas.\nInhibe el factor Xa."
+    assert t("embarazo_lactancia") == "No atraviesa la placenta.\nPuede utilizarse durante la lactancia."
+    assert t("mecanismo_farmacocinetica") == "Grupo: heparinas.\nInhibe el factor Xa."
     assert t("alerta") is None and t("perioperatorio") is None
 
     mono = generar_borrador(db_sembrada, p)
